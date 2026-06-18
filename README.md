@@ -6,40 +6,93 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 
 ### Kimlik ve Yetki Keşfi
 - `sts:GetCallerIdentity` ile mevcut kimliğin ARN, Hesap ID ve Kullanıcı ID bilgilerini çeker
-- `iam:SimulatePrincipalPolicy` API'si üzerinden **29 kritik IAM eylemi** için yetki simülasyonu yapar
+- `iam:SimulatePrincipalPolicy` API'si üzerinden **58 kritik IAM eylemi** için yetki simülasyonu yapar
 - Simülasyon API'sine erişim engellendiğinde fallback mekanizması ile çalışmaya devam eder
 
 ### Dinamik JSON Kural Veritabanı
 - Aracın tespit ettiği tüm yetki yükseltme vektörleri, risk skorları, gerekli IAM izinleri ve mavi takım tavsiyeleri statik kod yerine harici bir `vektorler.json` dosyasında saklanır.
 - Koda müdahale etmeye gerek kalmadan, JSON dosyasına basit bir kural bloğu ekleyerek araca yeni zafiyet vektörleri öğretilebilir.
+- Her vektör için `gerekli_izinler` alanı iç içe liste yapısıyla tanımlanır: dış liste VEYA (OR), iç liste VE (AND) mantığıyla değerlendirilir. Bu sayede `PassRole + (CreateProject VEYA StartBuild)` gibi karmaşık izin koşulları kod yazmadan ifade edilebilir.
+- Risk skorları, düğüm-zafiyet eşleme tablosu ve kontrol edilecek IAM eylem listesi çalışma zamanında JSON'dan otomatik türetilir.
 
-### 23 Yetki Yükseltme Vektörü Kontrolü
+### 50 Yetki Yükseltme Vektörü Kontrolü
+
+#### IAM Tabanlı Vektörler (1–18)
 
 | # | Vektör | Gereken İzinler | Kritiklik | Risk |
 |---|--------|-----------------|-----------|------|
 | 1 | Politika Sürümü Manipülasyonu | `iam:CreateNewPolicyVersion` | Kritik | 9.0 |
 | 2 | Doğrudan Hak Enjeksiyonu | `iam:AttachUserPolicy` / `iam:PutUserPolicy` | Kritik | 9.5 |
-| 3 | Metadata IMDSv2 Üzerinden Rol Çalma | `iam:PassRole` + `ec2:RunInstances` | Kritik | 9.8 |
-| 4 | Lambda Fonksiyonu ile Admin Tetikleme | `iam:PassRole` + `lambda:CreateFunction` | Kritik | 9.5 |
-| 5 | Güven İlişkisi Suistimali | `iam:UpdateAssumeRolePolicy` | Yüksek | 8.0 |
-| 6 | Glue Endpoint Üzerinden Rol Çalma | `iam:PassRole` + `glue:CreateDevEndpoint` | Kritik | 9.3 |
-| 7 | CloudFormation Stack ile Yetki Yükseltme | `iam:PassRole` + `cloudformation:CreateStack` | Kritik | 9.6 |
-| 8 | DataPipeline Manipülasyonu | `iam:PassRole` + `datapipeline:CreatePipeline` | Kritik | 9.4 |
-| 9 | SageMaker Notebook Konsoluna Sızma | `sagemaker:CreatePresignedNotebookInstanceUrl` | Yüksek | 7.5 |
-| 10 | Erişim Anahtarı Üretme | `iam:CreateAccessKey` | Kritik | 9.2 |
-| 11 | Konsol Parolası Atama | `iam:CreateLoginProfile` | Kritik | 9.0 |
-| 12 | EC2'ya Sonradan Rol Atama | `iam:PassRole` + `ec2:ModifyInstanceAttribute` | Kritik | 9.7 |
-| 13 | Zincirleme Rol Üstlenme | `sts:AssumeRole` | Yüksek | 7.5 |
-| 14 | Secrets Manager'dan Veri Okuma | `secretsmanager:GetSecretValue` | Yüksek | 7.0 |
-| 15 | S3 Üzerinden Kod Çalıştırma | `s3:GetObject` / `s3:PutObject` | Yüksek | 6.5 |
-| 16 | Konsol Şifresi Güncelleme | `iam:UpdateLoginProfile` | Yüksek | 8.5 |
-| 17 | Grup Yönetimi Manipülasyonu | `iam:AddUserToGroup` | Kritik | 9.2 |
-| 18 | Eski Politika Sürümüne Dönüş | `iam:SetDefaultPolicyVersion` | Kritik | 8.8 |
-| 19 | Mevcut Lambda Koduna Enjeksiyon | `lambda:UpdateFunctionCode` | Yüksek | 8.0 |
-| 20 | CodeBuild Projesi ile Rol Çalma | `iam:PassRole` + `codebuild:CreateProject` / `StartBuild` | Kritik | 9.5 |
-| 21 | SSM Komut Enjeksiyonu | `ssm:SendCommand` / `ssm:StartSession` | Yüksek | 8.5 |
-| 22 | Rol Politikası Manipülasyonu | `iam:PutRolePolicy` / `iam:AttachRolePolicy` | Kritik | 9.3 |
-| 23 | Lambda Konfigürasyon Güncelleme | `lambda:UpdateFunctionConfiguration` | Yüksek | 8.5 |
+| 3 | Güven İlişkisi Suistimali | `iam:UpdateAssumeRolePolicy` | Yüksek | 8.0 |
+| 4 | Erişim Anahtarı Üretme | `iam:CreateAccessKey` | Kritik | 9.2 |
+| 5 | Konsol Parolası Atama | `iam:CreateLoginProfile` | Kritik | 9.0 |
+| 6 | Konsol Şifresi Güncelleme | `iam:UpdateLoginProfile` | Yüksek | 8.5 |
+| 7 | Grup Yönetimi Manipülasyonu | `iam:AddUserToGroup` | Kritik | 9.2 |
+| 8 | Eski Politika Sürümüne Dönüş | `iam:SetDefaultPolicyVersion` | Kritik | 8.8 |
+| 9 | Rol Politikası Manipülasyonu | `iam:PutRolePolicy` / `iam:AttachRolePolicy` | Kritik | 9.3 |
+| 10 | Yeni Yönetici Politikası Oluşturma | `iam:CreatePolicy` | Kritik | 9.0 |
+| 11 | Yeni Rol Oluşturarak Yönetici Yetkisi Kazanma | `iam:CreateRole` + `iam:AttachRolePolicy` | Kritik | 9.8 |
+| 12 | Rol Üzerindeki Kısıtlayıcı Politikayı Kaldırma | `iam:DeleteRolePolicy` | Kritik | 9.0 |
+| 13 | SAML Kimlik Sağlayıcı Manipülasyonu | `iam:UpdateSAMLProvider` | Kritik | 9.1 |
+| 14 | SAML Kimlik Sağlayıcı Oluşturarak Federasyon | `iam:CreateSAMLProvider` | Kritik | 9.2 |
+| 15 | OIDC Parmak İzi Güncellemesi | `iam:UpdateOpenIDConnectProviderThumbprint` | Yüksek | 8.5 |
+| 16 | İmzalama Sertifikası Yükleyerek API Erişimi | `iam:UploadSigningCertificate` | Yüksek | 8.5 |
+| 17 | EC2 Örnek Profili Oluşturarak Rol Atama | `iam:CreateInstanceProfile` + `iam:AddRoleToInstanceProfile` | Kritik | 9.3 |
+| 18 | Federasyon Belirteci Ele Geçirme | `sts:GetFederationToken` | Yüksek | 8.5 |
+
+#### EC2 Tabanlı Vektörler (19–23)
+
+| # | Vektör | Gereken İzinler | Kritiklik | Risk |
+|---|--------|-----------------|-----------|------|
+| 19 | Metadata IMDSv2 Üzerinden Rol Çalma | `iam:PassRole` + `ec2:RunInstances` | Kritik | 9.8 |
+| 20 | EC2'ya Sonradan Rol Atama | `iam:PassRole` + `ec2:ModifyInstanceAttribute` | Kritik | 9.7 |
+| 21 | EC2 Örnek Profili İlişkilendirme | `iam:PassRole` + `ec2:AssociateIamInstanceProfile` | Kritik | 9.5 |
+| 22 | EC2 Yönetici Parolasını Ele Geçirme | `ec2:GetPasswordData` | Yüksek | 7.0 |
+| 23 | Zincirleme Rol Üstlenme | `sts:AssumeRole` | Yüksek | 7.5 |
+
+#### Lambda ve Sunucusuz Vektörler (24–31)
+
+| # | Vektör | Gereken İzinler | Kritiklik | Risk |
+|---|--------|-----------------|-----------|------|
+| 24 | Lambda Fonksiyonu ile Admin Tetikleme | `iam:PassRole` + `lambda:CreateFunction` | Kritik | 9.5 |
+| 25 | Mevcut Lambda Koduna Enjeksiyon | `lambda:UpdateFunctionCode` | Yüksek | 8.0 |
+| 26 | Lambda Konfigürasyon Güncelleme | `lambda:UpdateFunctionConfiguration` | Yüksek | 8.5 |
+| 27 | Lambda İzni Ekleme | `lambda:AddPermission` | Yüksek | 8.5 |
+| 28 | Lambda Olay Kaynağı Eşleştirme | `lambda:CreateEventSourceMapping` | Yüksek | 8.0 |
+| 29 | DynamoDB Akışı Üzerinden Lambda Tetikleme | `dynamodb:PutItem` | Yüksek | 7.5 |
+| 30 | SNS Konusu Üzerinden Kod Çalıştırma | `sns:Publish` | Yüksek | 7.0 |
+| 31 | SQS Kuyruğu Üzerinden Lambda Tetikleme | `sqs:SendMessage` | Yüksek | 7.0 |
+
+#### Servis Spesifik PassRole Vektörleri (32–43)
+
+| # | Vektör | Gereken İzinler | Kritiklik | Risk |
+|---|--------|-----------------|-----------|------|
+| 32 | Glue Endpoint Üzerinden Rol Çalma | `iam:PassRole` + `glue:CreateDevEndpoint` | Kritik | 9.3 |
+| 33 | CloudFormation Stack ile Yetki Yükseltme | `iam:PassRole` + `cloudformation:CreateStack` | Kritik | 9.6 |
+| 34 | CloudFormation Değişiklik Kümesi Yürütme | `cloudformation:CreateChangeSet` + `ExecuteChangeSet` | Yüksek | 8.5 |
+| 35 | DataPipeline Manipülasyonu | `iam:PassRole` + `datapipeline:CreatePipeline` | Kritik | 9.4 |
+| 36 | CodeBuild Projesi ile Rol Çalma | `iam:PassRole` + `codebuild:CreateProject` / `StartBuild` | Kritik | 9.5 |
+| 37 | ECS Görev Tanımı Üzerinden Rol Çalma | `iam:PassRole` + `ecs:RegisterTaskDefinition` | Kritik | 9.0 |
+| 38 | ECS Görev Çalıştırma Üzerinden Rol Çalma | `iam:PassRole` + `ecs:RunTask` | Kritik | 9.1 |
+| 39 | EKS Kümesi Üzerinden Rol Çalma | `iam:PassRole` + `eks:CreateCluster` | Kritik | 9.0 |
+| 40 | API Gateway Üzerinden Rol Çalma | `iam:PassRole` + `apigateway:POST` | Yüksek | 8.0 |
+| 41 | MediaConvert İşi Üzerinden Rol Çalma | `iam:PassRole` + `mediaconvert:CreateJob` | Yüksek | 8.0 |
+| 42 | CodeStar Projesi Üzerinden Rol Çalma | `iam:PassRole` + `codestar:CreateProject` | Yüksek | 8.5 |
+| 43 | Redshift Kümesi Üzerinden Rol Çalma | `iam:PassRole` + `redshift:CreateCluster` | Yüksek | 8.5 |
+
+#### Veri Erişimi ve Diğer Vektörler (44–50)
+
+| # | Vektör | Gereken İzinler | Kritiklik | Risk |
+|---|--------|-----------------|-----------|------|
+| 44 | SageMaker Notebook Konsoluna Sızma | `sagemaker:CreatePresignedNotebookInstanceUrl` | Yüksek | 7.5 |
+| 45 | Secrets Manager'dan Veri Okuma | `secretsmanager:GetSecretValue` | Yüksek | 7.0 |
+| 46 | S3 Üzerinden Kod Çalıştırma | `s3:GetObject` / `s3:PutObject` | Yüksek | 6.5 |
+| 47 | S3 Kova Olay Bildirimi Yapılandırması | `s3:PutBucketNotification` | Yüksek | 7.5 |
+| 48 | S3 Kova Politikası Manipülasyonu | `s3:PutBucketPolicy` | Yüksek | 8.0 |
+| 49 | SSM Komut Enjeksiyonu | `ssm:SendCommand` / `ssm:StartSession` | Yüksek | 8.5 |
+| 50 | KMS Yetki Devri Oluşturma | `kms:CreateGrant` | Yüksek | 8.0 |
+
+> **Risk Dağılımı:** 24 Kritik (≥8.8), 26 Yüksek (6.5–8.5). Her vektör; açıklama, sömürü komutu, CloudTrail izi, sıkılaştırma önerisi ve mavi takım savunma önerisi ile birlikte `vektorler.json` içinde tanımlanmıştır.
 
 ### CVSS Benzeri Risk Skorlaması
 - Her zafiyet için **0-10 arası sayısal risk skoru** otomatik hesaplanır
@@ -205,15 +258,50 @@ python -m tulpar \
 tulpar/
 ├── __init__.py           Paket başlatıcı, sürüm bilgisi (v2.1.0)
 ├── __main__.py           python -m tulpar giriş noktası
-├── sabitler.py           Tüm sabitler, risk skoru tablosu, CDN URL'leri
-├── vektorler.json        Dinamik kural veritabanı (Vektörler, izinler ve skorlar)
-├── yardimcilar.py        Loglama, SRI hash, JSON okuyucu, önbellek, konfigürasyon
+├── sabitler.py           Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri
+├── vektorler.json        Dinamik kural veritabanı (50 vektör, izinler ve skorlar)
+├── yardimcilar.py        Loglama, SRI hash, önbellek, konfigürasyon, vektör JSON okuyucu
 ├── tarayici.py           GekSizmaScanner — Kimlik, bölge, SCP, progress tracking
 ├── analiz.py             ExploitationMappingEngine — JSON'dan dinamik olarak kuralları işleyen motor
 ├── rapor.py              AttackGraphGenerator + ReportWriter + CokluFormatRaporlayici
 └── main.py               CLI (argparse), kimlik çözümleme, akış kontrolü
-test_tulpar.py            Birim testleri (moto + unittest.mock)
+test_tulpar.py            Birim testleri (unittest.mock)
 ```
+
+### Veri Akışı
+
+1. `yardimcilar.vektorleri_yukle()` → `vektorler.json` okunur, önbelleğe alınır
+2. `yardimcilar.kontrol_edilecek_eylemleri_derle()` → Tüm vektörlerden benzersiz 58 IAM eylemi çıkarılır
+3. `tarayici.hak_simulasyonu_yap()` → 58 eylem için IAM simülasyonu yapılır
+4. `analiz.ExploitationMappingEngine` → Her vektörün `gerekli_izinler` koşulu simülasyon sonucuna karşı değerlendirilir, eşleşenler bulguya dönüştürülür
+5. `yardimcilar.dugum_zafiyet_esleme_olustur()` → JSON'dan düğüm-zafiyet eşleme tablosu türetilir
+6. `rapor` modülü → JSON, HTML, CSV, Markdown formatlarında rapor üretilir
+
+### Yeni Vektör Ekleme
+
+`vektorler.json` dosyasına aşağıdaki yapıda yeni bir JSON nesnesi eklemek yeterlidir — hiçbir kod değişikliği gerekmez:
+
+```json
+{
+  "vektor_adi": "YeniVektor_TeknikAdi",
+  "turkce_baslik": "Vektörün Türkçe Başlığı",
+  "gerekli_izinler": [["izin:1", "izin:2"], ["izin:3"]],
+  "risk_seviyesi": "Kritik",
+  "risk_skoru": 9.0,
+  "aciklama": "Zafiyetin detaylı açıklaması...",
+  "iyilestirme": "Sıkılaştırma önerisi...",
+  "cloudtrail_izi": "IlgiliAPILar",
+  "somuru_komutu": "aws ... sömürü komutu ...",
+  "mavi_takim_onerisi": "Mavi takım savunma önerisi...",
+  "saldiri_grafi_dugumu": "GrafikDugumAdi",
+  "saldiri_grafi_hedefi": "AdministratorAccess"
+}
+```
+
+`gerekli_izinler` alanındaki dış liste VEYA (OR), iç listeler VE (AND) mantığıyla değerlendirilir:
+- `[["izin:A"]]` → yalnızca `izin:A` allowed ise tetiklenir
+- `[["izin:A", "izin:B"]]` → `izin:A` VE `izin:B` allowed ise tetiklenir
+- `[["izin:A"], ["izin:B"]]` → `izin:A` VEYA `izin:B` allowed ise tetiklenir
 
 ## GitHub Actions CI/CD
 
@@ -232,7 +320,7 @@ pip install moto pytest
 python -m pytest test_tulpar.py -v
 ```
 
-16 test, tüm temel sınıfları ve hata yönetimini kapsar.
+15 test, tüm temel sınıfları ve hata yönetimini kapsar.
 
 ## Güvenlik ve Sorumluluk Reddi
 
