@@ -1,0 +1,103 @@
+name: Tulpar AWS IAM Guvenlik Taramasi
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      aws_profil:
+        description: 'AWS Profil Adi (bos birakilirsa varsayilan zincir kullanilir)'
+        required: false
+        default: ''
+      format:
+        description: 'Ek cikti formati'
+        required: false
+        default: 'markdown'
+        type: choice
+        options:
+          - none
+          - csv
+          - markdown
+  push:
+    paths:
+      - 'tulpar/**'
+      - 'tulpar.py'
+      - 'requirements.txt'
+
+jobs:
+  tulpar_tarama:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      security-events: write
+    steps:
+      - name: Depoyu klonla
+        uses: actions/checkout@v4
+
+      - name: Python kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bagimliliklari yukle
+        run: |
+          pip install -r requirements.txt
+          pip install tqdm
+
+      - name: AWS kimlik bilgilerini yapilandir
+        if: github.event.inputs.aws_profil == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TULPAR_TARAMA_ROLU_ARN }}
+          aws-region: us-east-1
+
+      - name: Tulpar taramasini calistir
+        env:
+          AWS_PROFILE: ${{ github.event.inputs.aws_profil }}
+        run: |
+          if [ -n "$AWS_PROFILE" ]; then
+            python -m tulpar --aws-profil "$AWS_PROFILE" --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md
+          else
+            python -m tulpar --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md
+          fi
+
+      - name: JSON raporu yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-rapor-json
+          path: tulpar_rapor.json
+
+      - name: HTML grafigini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-grafik-html
+          path: tulpar_grafik.html
+
+      - name: Markdown raporu yukle
+        if: github.event.inputs.format == 'markdown' || github.event_name == 'schedule'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-rapor-markdown
+          path: tulpar_rapor.md
+
+      - name: Onbellek dosyasini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-onbellek
+          path: tulpar_onbellek.json
+
+      - name: Zafiyet ozetini goster
+        run: |
+          echo "## Tulpar Tarama Sonucu" >> $GITHUB_STEP_SUMMARY
+          ZAFIYET_SAYISI=$(python -c "import json; d=json.load(open('tulpar_rapor.json','r',encoding='utf-8')); print(d['zafiyet_sayisi'])")
+          echo "**Tespit Edilen Zafiyet:** $ZAFIYET_SAYISI" >> $GITHUB_STEP_SUMMARY
+          python -c "
+      import json
+      d = json.load(open('tulpar_rapor.json', 'r', encoding='utf-8'))
+      for b in d['bulgular']:
+          kritik = b.get('kritiklik_seviyesi', 'Belirsiz')
+          risk = b.get('risk_skoru', '-')
+          ad = b.get('zafiyet_adi', '')
+          print(f'- **{ad}** | {kritik} | Risk: {risk}/10')
+      " >> $GITHUB_STEP_SUMMARY

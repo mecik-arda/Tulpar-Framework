@@ -1,0 +1,22 @@
+raporlar/
+
+# Editör / IDE ayarları
+.vscode/
+.idea/
+.claude/
+
+# Python geçici/derlenmiş dosyaları
+__pycache__/
+*.pyc
+
+# Sanal ortamlar
+venv/
+.venv/
+env/
+
+# Test önbellekleri
+.pytest_cache/
+
+# Tulpar tarama çıktıları
+*.json
+*.log
