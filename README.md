@@ -9,6 +9,10 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 - `iam:SimulatePrincipalPolicy` API'si üzerinden **29 kritik IAM eylemi** için yetki simülasyonu yapar
 - Simülasyon API'sine erişim engellendiğinde fallback mekanizması ile çalışmaya devam eder
 
+### Dinamik JSON Kural Veritabanı
+- Aracın tespit ettiği tüm yetki yükseltme vektörleri, risk skorları, gerekli IAM izinleri ve mavi takım tavsiyeleri statik kod yerine harici bir `vektorler.json` dosyasında saklanır.
+- Koda müdahale etmeye gerek kalmadan, JSON dosyasına basit bir kural bloğu ekleyerek araca yeni zafiyet vektörleri öğretilebilir.
+
 ### 23 Yetki Yükseltme Vektörü Kontrolü
 
 | # | Vektör | Gereken İzinler | Kritiklik | Risk |
@@ -202,9 +206,10 @@ tulpar/
 ├── __init__.py           Paket başlatıcı, sürüm bilgisi (v2.1.0)
 ├── __main__.py           python -m tulpar giriş noktası
 ├── sabitler.py           Tüm sabitler, risk skoru tablosu, CDN URL'leri
-├── yardimcilar.py        Loglama, SRI hash, CSV/Markdown yazıcı, önbellek, konfigürasyon
+├── vektorler.json        Dinamik kural veritabanı (Vektörler, izinler ve skorlar)
+├── yardimcilar.py        Loglama, SRI hash, JSON okuyucu, önbellek, konfigürasyon
 ├── tarayici.py           GekSizmaScanner — Kimlik, bölge, SCP, progress tracking
-├── analiz.py             ExploitationMappingEngine — 23 vektör kontrolü, risk skorlama
+├── analiz.py             ExploitationMappingEngine — JSON'dan dinamik olarak kuralları işleyen motor
 ├── rapor.py              AttackGraphGenerator + ReportWriter + CokluFormatRaporlayici
 └── main.py               CLI (argparse), kimlik çözümleme, akış kontrolü
 test_tulpar.py            Birim testleri (moto + unittest.mock)

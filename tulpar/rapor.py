@@ -4,10 +4,9 @@ import logging
 from tulpar.sabitler import (
     CDN_BOOTSTRAP_URL, CDN_VIS_NETWORK_URL,
     SRI_BOOTSTRAP_HASH, SRI_VIS_NETWORK_HASH,
-    YEREL_BOOTSTRAP_ADI, YEREL_VIS_NETWORK_ADI,
-    DUGUM_ZAFIYET_ESLEME_TABLOSU
+    YEREL_BOOTSTRAP_ADI, YEREL_VIS_NETWORK_ADI
 )
-from tulpar.yardimcilar import cevrimdisi_asset_indir, csv_raporu_yaz, markdown_raporu_yaz
+from tulpar.yardimcilar import cevrimdisi_asset_indir, csv_raporu_yaz, markdown_raporu_yaz, dugum_zafiyet_esleme_olustur
 
 logger = logging.getLogger('Tulpar')
 
@@ -81,9 +80,7 @@ class AttackGraphGenerator:
                 "scp_kisitlamasi_var": zafiyet.get("scp_kisitlamasi_var")
             }
 
-        dugum_zafiyet_esleme = {}
-        for dugum_etiketi, zafiyet_adi in DUGUM_ZAFIYET_ESLEME_TABLOSU:
-            dugum_zafiyet_esleme[dugum_etiketi] = zafiyet_adi
+        dugum_zafiyet_esleme = dugum_zafiyet_esleme_olustur()
 
         zafiyet_json = json.dumps(zafiyet_sozlugu, ensure_ascii=False)
         dugum_zafiyet_json = json.dumps(dugum_zafiyet_esleme, ensure_ascii=False)

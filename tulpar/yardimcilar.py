@@ -9,6 +9,66 @@ from datetime import datetime
 
 logger = logging.getLogger('Tulpar')
 
+_VEKTOR_ONBELLEGI = None
+
+
+def vektorleri_yukle():
+    global _VEKTOR_ONBELLEGI
+    if _VEKTOR_ONBELLEGI is not None:
+        return _VEKTOR_ONBELLEGI
+    mevcut_dizin = os.path.dirname(os.path.abspath(__file__))
+    json_yolu = os.path.join(mevcut_dizin, 'vektorler.json')
+    try:
+        with open(json_yolu, 'r', encoding='utf-8') as dosya:
+            veri = json.load(dosya)
+        _VEKTOR_ONBELLEGI = veri
+        logger.info("Vektor tanimlari yuklendi: %s", json_yolu)
+        return veri
+    except FileNotFoundError:
+        logger.error("Vektor tanim dosyasi bulunamadi: %s", json_yolu)
+        return {"vektorler": [], "ozel_durumlar": {}}
+    except json.JSONDecodeError as hata:
+        logger.error("Vektor JSON dosyasi bozuk: %s", hata)
+        return {"vektorler": [], "ozel_durumlar": {}}
+
+
+def kontrol_edilecek_eylemleri_derle(vektor_verisi=None):
+    if vektor_verisi is None:
+        vektor_verisi = vektorleri_yukle()
+    eylemler = set()
+    for vektor in vektor_verisi.get('vektorler', []):
+        for izin_grubu in vektor.get('gerekli_izinler', []):
+            for izin in izin_grubu:
+                eylemler.add(izin)
+    return sorted(list(eylemler))
+
+
+def dugum_zafiyet_esleme_olustur(vektor_verisi=None):
+    if vektor_verisi is None:
+        vektor_verisi = vektorleri_yukle()
+    esleme = {}
+    for vektor in vektor_verisi.get('vektorler', []):
+        dugum = vektor.get('saldiri_grafi_dugumu', '')
+        baslik = vektor.get('turkce_baslik', '')
+        if dugum and baslik:
+            esleme[dugum] = baslik
+    return esleme
+
+
+def risk_skoru_tablosu_olustur(vektor_verisi=None):
+    if vektor_verisi is None:
+        vektor_verisi = vektorleri_yukle()
+    tablo = {}
+    for vektor in vektor_verisi.get('vektorler', []):
+        baslik = vektor.get('turkce_baslik', '')
+        skor = vektor.get('risk_skoru', 5.0)
+        if baslik:
+            tablo[baslik] = skor
+    ozel = vektor_verisi.get('ozel_durumlar', {})
+    if 'bilinmeyen_yetki' in ozel:
+        tablo['Bilinmeyen Yetki Durumu'] = ozel['bilinmeyen_yetki'].get('risk_skoru', 5.0)
+    return tablo
+
 def loglama_yapilandir():
     logging.basicConfig(
         level=logging.INFO,
