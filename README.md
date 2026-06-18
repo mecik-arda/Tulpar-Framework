@@ -1,21 +1,25 @@
 # Tulpar — AWS IAM Privilege Escalation Scanner
 
-Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme (privilege escalation) vektörlerini otomatik olarak tarayan, analiz eden ve görselleştiren gelişmiş bir ofansif güvenlik aracıdır. Araç, bir AWS hesabına ait erişim anahtarları ile çalışarak mevcut yetkileri simüle eder, istismar edilebilir yolları tespit eder ve sonuçları JSON, CSV, Markdown raporları ile interaktif HTML saldırı grafiği olarak sunar.
+Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme (privilege escalation) vektörlerini otomatik olarak tarayan, analiz eden ve görselleştiren gelişmiş bir ofansif güvenlik aracıdır. Araç, bir AWS hesabına ait erişim anahtarları ile çalışarak mevcut yetkileri simüle eder, istismar edilebilir yolları tespit eder ve sonuçları JSON, CSV, Markdown, SARIF raporları ile interaktif HTML saldırı grafiği olarak sunar.
 
 ## Özellikler
 
 ### Kimlik ve Yetki Keşfi
 - `sts:GetCallerIdentity` ile mevcut kimliğin ARN, Hesap ID ve Kullanıcı ID bilgilerini çeker
 - `iam:SimulatePrincipalPolicy` API'si üzerinden **58 kritik IAM eylemi** için yetki simülasyonu yapar
+- Eylem sayısı 200'ü aştığında otomatik sayfalama (200'erli gruplar) ile API limit aşımı engellenir
 - Simülasyon API'sine erişim engellendiğinde fallback mekanizması ile çalışmaya devam eder
+- `botocore.config.Config` ile **adaptive retry** (5 yeniden deneme, exponential backoff) sayesinde throttling koruması
 
 ### Dinamik JSON Kural Veritabanı
-- Aracın tespit ettiği tüm yetki yükseltme vektörleri, risk skorları, gerekli IAM izinleri ve mavi takım tavsiyeleri statik kod yerine harici bir `vektorler.json` dosyasında saklanır.
-- Koda müdahale etmeye gerek kalmadan, JSON dosyasına basit bir kural bloğu ekleyerek araca yeni zafiyet vektörleri öğretilebilir.
-- Her vektör için `gerekli_izinler` alanı iç içe liste yapısıyla tanımlanır: dış liste VEYA (OR), iç liste VE (AND) mantığıyla değerlendirilir. Bu sayede `PassRole + (CreateProject VEYA StartBuild)` gibi karmaşık izin koşulları kod yazmadan ifade edilebilir.
-- Risk skorları, düğüm-zafiyet eşleme tablosu ve kontrol edilecek IAM eylem listesi çalışma zamanında JSON'dan otomatik türetilir.
+- Aracın tespit ettiği tüm yetki yükseltme vektörleri, risk skorları, gerekli IAM izinleri ve mavi takım tavsiyeleri statik kod yerine harici bir `vektorler.json` dosyasında saklanır
+- Koda müdahale etmeye gerek kalmadan, JSON dosyasına basit bir kural bloğu ekleyerek araca yeni zafiyet vektörleri öğretilebilir
+- Her vektör için `gerekli_izinler` alanı iç içe liste yapısıyla tanımlanır: dış liste VEYA (OR), iç liste VE (AND) mantığıyla değerlendirilir
+- **JSON Schema doğrulaması**: Yükleme anında 12 zorunlu alan, tip kontrolü ve geçerli risk seviyesi denetimi yapılır
+- **JSONDecodeError** halinde hata satırı ve kolonu loglanarak bozuk JSON'un tam konumu gösterilir
+- Risk skorları, düğüm-zafiyet eşleme tablosu ve kontrol edilecek IAM eylem listesi çalışma zamanında JSON'dan otomatik türetilir
 
-### 50 Yetki Yükseltme Vektörü Kontrolü
+### 65 Yetki Yükseltme Vektörü Kontrolü
 
 #### IAM Tabanlı Vektörler (1–18)
 
@@ -92,12 +96,32 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 | 49 | SSM Komut Enjeksiyonu | `ssm:SendCommand` / `ssm:StartSession` | Yüksek | 8.5 |
 | 50 | KMS Yetki Devri Oluşturma | `kms:CreateGrant` | Yüksek | 8.0 |
 
-> **Risk Dağılımı:** 24 Kritik (≥8.8), 26 Yüksek (6.5–8.5). Her vektör; açıklama, sömürü komutu, CloudTrail izi, sıkılaştırma önerisi ve mavi takım savunma önerisi ile birlikte `vektorler.json` içinde tanımlanmıştır.
+#### Keşif ve Bilgi Toplama Vektörleri (51–65)
+
+| # | Vektör | Gereken İzinler | Kritiklik | Risk |
+|---|--------|-----------------|-----------|------|
+| 51 | Aşırı Geniş Kullanıcı Listeleme Yetkisi | `iam:ListUsers` | Orta | 4.0 |
+| 52 | S3 Kova Listeleme Yetkisi ile Veri Keşfi | `s3:ListBucket` | Orta | 4.0 |
+| 53 | RDS Veritabanı Listeleme Yetkisi | `rds:DescribeDBInstances` | Orta | 4.5 |
+| 54 | EC2 Bulutu Listeleme Yetkisi | `ec2:DescribeInstances` | Düşük | 3.0 |
+| 55 | CloudTrail İzlerini Listeleme Yetkisi | `cloudtrail:DescribeTrails` | Düşük | 3.0 |
+| 56 | Güvenlik Grubu Listeleme Yetkisi | `ec2:DescribeSecurityGroups` | Orta | 4.5 |
+| 57 | Erişim Anahtarı Listeleme Yetkisi | `iam:ListAccessKeys` | Orta | 4.5 |
+| 58 | Parola Politikası Görüntüleme Yetkisi | `iam:GetAccountPasswordPolicy` | Düşük | 2.5 |
+| 59 | Lambda Fonksiyon Listeleme Yetkisi | `lambda:ListFunctions` | Düşük | 2.5 |
+| 60 | KMS Anahtar Listeleme Yetkisi | `kms:ListKeys` | Orta | 3.5 |
+| 61 | SNS Konu Listeleme Yetkisi | `sns:ListTopics` | Düşük | 3.0 |
+| 62 | CloudWatch Alarm Listeleme Yetkisi | `cloudwatch:DescribeAlarms` | Düşük | 2.5 |
+| 63 | Rol Detayı Görüntüleme Yetkisi | `iam:GetRole` | Orta | 4.0 |
+| 64 | SQS Kuyruk Listeleme Yetkisi | `sqs:ListQueues` | Düşük | 3.0 |
+| 65 | AWS Config Kaydedici Listeleme Yetkisi | `config:DescribeConfigurationRecorders` | Düşük | 2.0 |
+
+> **Risk Dağılımı:** 24 Kritik, 26 Yüksek, 7 Orta, 8 Düşük. Her vektör; açıklama, sömürü komutu, CloudTrail izi, sıkılaştırma önerisi ve mavi takım savunma önerisi ile birlikte `vektorler.json` içinde tanımlanmıştır.
 
 ### CVSS Benzeri Risk Skorlaması
 - Her zafiyet için **0-10 arası sayısal risk skoru** otomatik hesaplanır
 - HTML dashboard'da renkli risk çubuğu ile görselleştirilir (Kırmızı ≥9.0, Turuncu ≥7.0, Sarı ≥5.0, Yeşil <5.0)
-- Risk skoru JSON, CSV ve Markdown çıktılarına dahil edilir
+- Risk skoru JSON, CSV, SARIF ve Markdown çıktılarına dahil edilir
 
 ### AWS Organizations ve SCP Kontrolü
 - `organizations:DescribeOrganization` ile Organizations yapısını tespit eder
@@ -105,9 +129,9 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 - SCP varlığı tüm rapor formatlarında `scp_kisitlamasi_var` alanı ile belirtilir
 - SCP varsa kullanıcıya IAM politikalarının SCP tarafından kısıtlanabileceği uyarısı verilir
 
-### Çoklu Bölge (Multi-Region) Desteği
+### Çoklu Bölge (Multi-Region) Paralel Tarama
 - `ec2:DescribeRegions` ile tüm aktif AWS bölgelerini dinamik olarak listeler
-- tqdm progress bar ile `[7/17] eu-west-1 taranıyor...` formatında anlık ilerleme gösterimi
+- `ThreadPoolExecutor` ile bölgeler **paralel taranır** (varsayılan 5 iş parçacığı, `--thread-sayisi` ile ayarlanabilir)
 - API erişimi kısıtlıysa 17 varsayılan bölge üzerinden taramaya devam eder
 - Her bölgede EC2 ve Lambda kaynaklarını tarayarak envanter çıkarır
 
@@ -120,23 +144,44 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 ### Çoklu Çıktı Formatı
 - `--format csv` ile CSV raporu (Jira/Excel entegrasyonu)
 - `--format markdown` ile Markdown raporu (Confluence/Belgelendirme)
+- `--format sarif` veya `--sarif-cikti` ile SARIF raporu (GitHub Security sekmesi entegrasyonu)
 - JSON ve HTML formatlarına ek olarak desteklenir
+
+### Tarama Profilleri
+- **`--hizli`** — En kritik 15 vektörü tarar (hızlı triage modu)
+- **`--sessiz`** — Sadece meta-bilgili JSON'u stdout'a basar, loglama kapalı (CI/CD entegrasyonu)
+- **`--sadece-kontrol`** — AWS bağlantısını ve kimlik bilgisini doğrular, tarama yapmaz
+
+### Diff Rapor (Karşılaştırma)
+- **`--karsilastir onceki_rapor.json`** — İki tarama arasındaki farkı analiz eder
+- Yeni eklenen, kapanan ve devam eden zafiyetleri ayrı ayrı listeler
+- Yeni kritik zafiyet varsa `exit code 1` döndürür
 
 ### Konfigürasyon Dosyası Desteği
 - `--konfig ayarlar.json` ile JSON/YAML konfigürasyon dosyasından varsayılan değerler okunur
+- Tüm CLI parametreleri konfigürasyon dosyasından override edilebilir
 - CI/CD pipeline'larına ve otomasyon sistemlerine kolay entegrasyon
 
 ### Çevrimdışı (Air-Gapped) Raporlama
 - `--cevrimdisi` ile CDN asset'leri yerel `tulpar_assets/` klasörüne indirilir
+- İndirme sonrası **SRI hash doğrulaması** yapılır; bozuk/manipüle dosyalar tespit edilip silinir
 - HTML raporu internet bağlantısı olmadan çalışır
 - İndirme başarısız olursa CDN bağlantılarına otomatik geri dönüş (fallback)
+
+### Güvenlik Önlemleri
+- **XSS Koruması:** HTML raporundaki tüm kullanıcı kaynaklı veriler `htmlKacis()` ile escape edilir
+- **SRI Koruması:** Tüm CDN kaynakları `sha384` hash doğrulaması ile MITM saldırılarına karşı korunur
+- **CDN Sürüm Damgası:** Asset URL'lerine `?v=SURUM` parametresi eklenerek tarayıcı önbellek tutarsızlıkları önlenir
+- **Ölü Kod Tasfiyesi:** `aws_hatasi_yonet()` tek mantık-tek yer (DRY) prensibiyle `yardimcilar.py`'de toplanmıştır
 
 ### Gelişmiş Hata Yönetimi
 - 8 farklı AWS hata kodu için spesifik Türkçe geri bildirim
 - `AccessDenied`, `TokenExpired`, `InvalidClientTokenId`, `UnauthorizedOperation`, `Throttling`, `ExpiredToken`, `SignatureDoesNotMatch`, `RequestExpired`
+- `aws_hatasi_yonet()` fonksiyonu hem `tarayici.py`'den delege edilerek hem de standalone olarak kullanılabilir
 
 ### Profesyonel Loglama
 - Python `logging` modülü ile yapılandırılmış log çıktıları
+- `hasHandlers()` kontrolü ile test ortamında mükerrer handler oluşumu engellenir
 - Zaman damgalı, seviye etiketli: `2026-06-18 14:30:00 - INFO - mesaj`
 
 ### İnteraktif HTML Saldırı Grafiği
@@ -144,12 +189,14 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 - **Sağ Panel (%35):** Bootstrap 5.3.2 karanlık tema sidebar — tıklanan düğümün detayları
 - Her zafiyet düğümü için: açıklama, kritiklik rozeti, risk skoru çubuğu, SCP durumu, CloudTrail izi, sömürü komutu, mavi takım önerisi, sıkılaştırma önerisi
 - Düğümlere hover ve tıklama etkileşimleri, fizik simülasyonu, responsive tasarım
-- **SRI (Subresource Integrity) koruması:** Tüm CDN kaynakları `sha384` hash doğrulaması ile MITM saldırılarına karşı korunur
+- Tüm kullanıcı verileri `htmlKacis()` ile XSS'ye karşı korunur
 
 ### CI/CD Entegrasyonu
-- `.github/workflows/tulpar_tarama.yml` ile her gece 03:00'te otomatik tarama
-- `workflow_dispatch` ile manuel tetikleme desteği
+- `.github/workflows/tulpar_tarama.yml` — iki job'lu pipeline: önce **test** (pytest), başarılı olursa **tarama**
+- `workflow_dispatch` ile manuel tetikleme, `push` ile `tulpar/**` değişikliklerinde otomatik test
+- `actions/cache@v4` ile **pip önbelleği** sayesinde workflow süresi kısalır
 - AWS OIDC ile güvenli kimlik doğrulama (`configure-aws-credentials`)
+- `upload-sarif@v3` ile SARIF sonuçları GitHub Security sekmesine akar
 - Tarama sonuçlarını GitHub Artifacts olarak saklama
 - Adım özetinde (Job Summary) zafiyet listesini gösterme
 
@@ -191,6 +238,36 @@ python -m tulpar \
 python -m tulpar --aws-profil uretim-hesabi
 ```
 
+### Hızlı Triage
+
+```bash
+python -m tulpar --hizli
+```
+
+### Sessiz CI/CD Modu
+
+```bash
+python -m tulpar --sessiz
+```
+
+### Bağlantı Testi
+
+```bash
+python -m tulpar --sadece-kontrol
+```
+
+### SARIF Çıktısı (GitHub Security)
+
+```bash
+python -m tulpar --format sarif --format-cikti tulpar_rapor.sarif
+```
+
+### Diff Rapor (İki Tarama Karşılaştırma)
+
+```bash
+python -m tulpar --karsilastir onceki_tulpar_rapor.json --json-cikti yeni_tulpar_rapor.json
+```
+
 ### Tüm Parametreler
 
 ```bash
@@ -203,6 +280,8 @@ python -m tulpar \
   --onbellek-suresi 48 \
   --format csv \
   --format-cikti raporlar/tulpar_bulgular.csv \
+  --sarif-cikti raporlar/tulpar_rapor.sarif \
+  --thread-sayisi 10 \
   --konfig tulpar_config.json
 ```
 
@@ -216,12 +295,19 @@ python -m tulpar \
 | `--aws-profil` | Hayır | `None` | `~/.aws/credentials` profil adı |
 | `--json-cikti` | Hayır | `raporlar/tulpar_rapor.json` | JSON rapor dosya yolu |
 | `--html-cikti` | Hayır | `raporlar/tulpar_grafik.html` | HTML grafik dosya yolu |
-| `--cevrimdisi` | Hayır | `False` | CDN asset'lerini yerel indir |
+| `--cevrimdisi` | Hayır | `False` | CDN asset'lerini yerel indir (SRI doğrulamalı) |
 | `--onbellek` | Hayır | `None` | Önbellek JSON dosya yolu |
 | `--onbellek-suresi` | Hayır | `24` | Önbellek geçerlilik süresi (saat) |
-| `--format` | Hayır | `json` | Ek çıktı formatı: `csv`, `markdown` |
+| `--format` | Hayır | `json` | Ek çıktı formatı: `csv`, `markdown`, `sarif` |
 | `--format-cikti` | Hayır | `None` | Formatlı çıktı dosya yolu |
+| `--sarif-cikti` | Hayır | `None` | SARIF formatında çıktı dosyası |
 | `--konfig` | Hayır | `None` | JSON/YAML konfigürasyon dosyası |
+| `--hizli` | Hayır | `False` | Sadece en kritik 15 vektörü tara |
+| `--sessiz` | Hayır | `False` | Meta-bilgili JSON'u stdout'a bas, logları kapat |
+| `--sadece-kontrol` | Hayır | `False` | AWS bağlantısını doğrula, tarama yapma |
+| `--karsilastir` | Hayır | `None` | Önceki JSON raporu ile karşılaştır |
+| `--karsilastirma-cikti` | Hayır | `raporlar/tulpar_karsilastirma.json` | Diff rapor çıktı yolu |
+| `--thread-sayisi` | Hayır | `5` | Paralel bölge tarama iş parçacığı sayısı (1–20) |
 
 ## Çıktı Dosyaları
 
@@ -248,9 +334,25 @@ python -m tulpar \
 }
 ```
 
+### Sessiz Mod JSON Çıktısı
+
+```json
+{
+  "tarama_tarihi": "2026-06-18T14:30:00",
+  "arac_surumu": "2.1.0",
+  "zafiyet_sayisi": 5,
+  "scp_kisitlamasi_var": false,
+  "kritik_zafiyet_sayisi": 3,
+  "yuksek_zafiyet_sayisi": 2,
+  "zafiyetler": ["Politika Surumu Manipulasyonu", "Dogrudan Hak Enjeksiyonu", ...]
+}
+```
+
+### SARIF Rapor — GitHub Security sekmesi entegrasyonu
 ### CSV Rapor — Jira/Excel entegrasyonu için
 ### Markdown Rapor — Confluence/Dokümantasyon için
 ### HTML Grafiği — İnteraktif görselleştirme (tarayıcıda açılır)
+### Diff Rapor — İki tarama arası fark analizi
 
 ## Mimari
 
@@ -258,24 +360,26 @@ python -m tulpar \
 tulpar/
 ├── __init__.py           Paket başlatıcı, sürüm bilgisi (v2.1.0)
 ├── __main__.py           python -m tulpar giriş noktası
-├── sabitler.py           Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri
-├── vektorler.json        Dinamik kural veritabanı (50 vektör, izinler ve skorlar)
-├── yardimcilar.py        Loglama, SRI hash, önbellek, konfigürasyon, vektör JSON okuyucu
-├── tarayici.py           GekSizmaScanner — Kimlik, bölge, SCP, progress tracking
-├── analiz.py             ExploitationMappingEngine — JSON'dan dinamik olarak kuralları işleyen motor
-├── rapor.py              AttackGraphGenerator + ReportWriter + CokluFormatRaporlayici
-└── main.py               CLI (argparse), kimlik çözümleme, akış kontrolü
-test_tulpar.py            Birim testleri (unittest.mock)
+├── sabitler.py           Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri, çıktı formatları
+├── vektorler.json        Dinamik kural veritabanı (65 vektör, 58 benzersiz IAM eylemi)
+├── yardimcilar.py        Loglama, SRI hash, önbellek, konfig, JSON okuyucu/doğrulayıcı,
+│                         SARIF rapor, diff rapor, servis adı ayrıştırma, hata yönetimi
+├── tarayici.py           GekSizmaScanner — Kimlik, SCP, paralel çoklu bölge, retry, sayfalama
+├── analiz.py             ExploitationMappingEngine — JSON'dan dinamik vektör işleme motoru
+├── rapor.py              AttackGraphGenerator (XSS korumalı) + ReportWriter + CokluFormatRaporlayici
+└── main.py               CLI (argparse), tarama profilleri, exit code, kimlik çözümleme
+test_tulpar.py            40 birim testi (unittest.mock)
 ```
 
 ### Veri Akışı
 
-1. `yardimcilar.vektorleri_yukle()` → `vektorler.json` okunur, önbelleğe alınır
-2. `yardimcilar.kontrol_edilecek_eylemleri_derle()` → Tüm vektörlerden benzersiz 58 IAM eylemi çıkarılır
-3. `tarayici.hak_simulasyonu_yap()` → 58 eylem için IAM simülasyonu yapılır
-4. `analiz.ExploitationMappingEngine` → Her vektörün `gerekli_izinler` koşulu simülasyon sonucuna karşı değerlendirilir, eşleşenler bulguya dönüştürülür
+1. `yardimcilar.vektorleri_yukle()` → `vektorler.json` okunur, 12 alanlı şema doğrulaması yapılır, önbelleğe alınır
+2. `yardimcilar.kontrol_edilecek_eylemleri_derle()` → 65 vektörden benzersiz 58 IAM eylemi çıkarılır
+3. `tarayici.hak_simulasyonu_yap()` → 200'erli sayfalama ile IAM simülasyonu yapılır, sonuçlar birleştirilir
+4. `analiz.ExploitationMappingEngine` → Her vektörün `gerekli_izinler` (OR/AND) koşulu simülasyon sonucuna karşı değerlendirilir
 5. `yardimcilar.dugum_zafiyet_esleme_olustur()` → JSON'dan düğüm-zafiyet eşleme tablosu türetilir
-6. `rapor` modülü → JSON, HTML, CSV, Markdown formatlarında rapor üretilir
+6. `rapor` modülü → JSON, HTML (XSS korumalı), CSV, Markdown, SARIF formatlarında rapor üretilir
+7. Kritik zafiyet varsa `sys.exit(1)`, yoksa `sys.exit(0)` — CI/CD pipeline'ları için
 
 ### Yeni Vektör Ekleme
 
@@ -305,7 +409,12 @@ test_tulpar.py            Birim testleri (unittest.mock)
 
 ## GitHub Actions CI/CD
 
-Depoda `.github/workflows/tulpar_tarama.yml` dosyası mevcuttur. Her gece 03:00 UTC'de otomatik tarama çalıştırır. Kullanmak için:
+Depoda `.github/workflows/tulpar_tarama.yml` dosyası mevcuttur. İki job'lu pipeline:
+
+1. **`test`** — Her `push` ve PR'de pytest çalıştırır. `actions/cache@v4` ile pip önbelleği kullanır
+2. **`tulpar_tarama`** — Testler geçince çalışır. Gece 03:07 UTC'de otomatik tarama yapar. SARIF sonuçlarını GitHub Security sekmesine yükler
+
+Kullanmak için:
 
 1. GitHub Secrets'a `AWS_TULPAR_TARAMA_ROLU_ARN` ekleyin (OIDC trust ilişkili IAM rolü)
 2. AWS hesabınızda GitHub Actions'ın assume-role yapabilmesi için OIDC provider yapılandırın
@@ -320,7 +429,23 @@ pip install moto pytest
 python -m pytest test_tulpar.py -v
 ```
 
-15 test, tüm temel sınıfları ve hata yönetimini kapsar.
+**40 test**, tüm modülleri kapsar:
+
+| Test Sınıfı | Test Sayısı | Kapsam |
+|-------------|:-----------:|--------|
+| `TestGekSizmaScannerKimlik` | 3 | Kimlik doğrulama ve sadece-kontrol modu |
+| `TestGekSizmaScannerHakSimulasyonu` | 3 | IAM simülasyonu, hata durumları |
+| `TestGekSizmaScannerSCPKontrolu` | 2 | SCP tespiti ve Organizations API hataları |
+| `TestGekSizmaScannerBolgeListeleme` | 2 | Bölge listeleme, AccessDenied fallback |
+| `TestExploitationMappingEngine` | 4 | Zafiyet tespiti, risk skoru, fallback, hızlı mod |
+| `TestYardimcilarVektorYukleme` | 8 | JSON yükleme, doğrulama (4 edge case), önbellek, eylem derleme, düğüm eşleme |
+| `TestReportWriter` | 2 | JSON rapor, dizin otomatik oluşturma |
+| `TestAttackGraphGenerator` | 1 | HTML grafik çıktısı |
+| `TestCokluFormatRaporlayici` | 4 | CSV, Markdown, SARIF, geçersiz format |
+| `TestSarifRaporu` | 2 | SARIF kritik ve orta risk seviyeleri |
+| `TestRaporKarsilastir` | 3 | Diff: yeni eklenen, kapanan, dosya yok |
+| `TestCokluBolgeKaynakTarama` | 2 | Paralel tarama, tüm bölgelerde hata |
+| `TestAwsHataYonetimi` | 4 | 4 farklı AWS hata kodu |
 
 ## Güvenlik ve Sorumluluk Reddi
 

@@ -566,6 +566,116 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
             self.assertIsInstance(baslik, str)
 
 
+class TestYardimcilarServisAyrıştırma(unittest.TestCase):
+    def test_servis_adi_ayristir_gecerli(self):
+        from tulpar.yardimcilar import servis_adi_ayristir
+        servis, eylem = servis_adi_ayristir('iam:PassRole')
+        self.assertEqual(servis, 'iam')
+        self.assertEqual(eylem, 'PassRole')
+
+    def test_servis_adi_ayristir_iki_nokta_yok(self):
+        from tulpar.yardimcilar import servis_adi_ayristir
+        servis, eylem = servis_adi_ayristir('CreateNewPolicyVersion')
+        self.assertEqual(servis, 'CreateNewPolicyVersion')
+        self.assertEqual(eylem, 'CreateNewPolicyVersion')
+
+    def test_servis_eylem_listesini_grupla(self):
+        from tulpar.yardimcilar import servis_eylem_listesini_grupla
+        eylemler = ['iam:CreateUser', 'iam:PassRole', 'ec2:RunInstances', 'ec2:DescribeInstances']
+        gruplar = servis_eylem_listesini_grupla(eylemler)
+        self.assertIn('iam', gruplar)
+        self.assertIn('ec2', gruplar)
+        self.assertEqual(len(gruplar['iam']), 2)
+        self.assertEqual(len(gruplar['ec2']), 2)
+        self.assertIn('iam:CreateUser', gruplar['iam'])
+        self.assertIn('ec2:RunInstances', gruplar['ec2'])
+
+
+class TestGekSizmaScannerSayfalama(unittest.TestCase):
+    @patch('boto3.Session')
+    def test_hak_simulasyonu_sayfalama(self, mock_session_sinifi):
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test_kullanici',
+            'Account': '123456789012',
+            'UserId': 'AIDATEST'
+        }
+        sayfa1_eylemleri = []
+        sayfa2_eylemleri = []
+        mock_iam = MagicMock()
+        def simulate_side_effect(PolicySourceArn, ActionNames, ResourceArns):
+            if len(sayfa1_eylemleri) == 0:
+                sayfa1_eylemleri.extend(ActionNames)
+                sonuclar = [{'EvalActionName': a, 'EvalDecision': 'allowed'} for a in ActionNames[:100]]
+                sonuclar += [{'EvalActionName': a, 'EvalDecision': 'implicitDeny'} for a in ActionNames[100:]]
+                return {'EvaluationResults': sonuclar}
+            else:
+                sayfa2_eylemleri.extend(ActionNames)
+                return {'EvaluationResults': [{'EvalActionName': a, 'EvalDecision': 'implicitDeny'} for a in ActionNames]}
+        mock_iam.simulate_principal_policy.side_effect = simulate_side_effect
+        mock_oturum = MagicMock()
+        mock_oturum.client.side_effect = lambda servis, **kwargs: mock_sts if servis == 'sts' else mock_iam
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        tarayici.sts_istemicisi = mock_sts
+        tarayici.iam_istemicisi = mock_iam
+        tarayici.kimlik_bilgileri = {'arn': 'arn:aws:iam::123456789012:user/test_kullanici'}
+
+        buyuk_eylem_listesi = ['iam:TestEylem{}'.format(i) for i in range(350)]
+        sonuc = tarayici.hak_simulasyonu_yap(buyuk_eylem_listesi)
+        self.assertIsInstance(sonuc, dict)
+        self.assertEqual(len(sonuc), 350)
+        self.assertGreater(len(sayfa1_eylemleri), 0)
+        self.assertGreater(len(sayfa2_eylemleri), 0)
+
+
+class TestGekSizmaScannerThreadSayisi(unittest.TestCase):
+    def test_varsayilan_thread_sayisi(self):
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        self.assertEqual(tarayici.thread_sayisi, 5)
+
+    def test_ozel_thread_sayisi(self):
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest', thread_sayisi=10)
+        self.assertEqual(tarayici.thread_sayisi, 10)
+
+    def test_thread_sayisi_alt_sinir(self):
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest', thread_sayisi=0)
+        self.assertEqual(tarayici.thread_sayisi, 1)
+
+    def test_thread_sayisi_ust_sinir(self):
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest', thread_sayisi=500)
+        self.assertEqual(tarayici.thread_sayisi, 20)
+
+
+class TestLoglamaYapilandir(unittest.TestCase):
+    def setUp(self):
+        kok_logger = logging.getLogger()
+        for h in list(kok_logger.handlers):
+            kok_logger.removeHandler(h)
+
+    def test_loglama_yapilandir_handler_ekler(self):
+        from tulpar.yardimcilar import loglama_yapilandir
+        kok_logger = logging.getLogger()
+        baslangic_sayisi = len(kok_logger.handlers)
+        loglama_yapilandir()
+        self.assertGreater(len(kok_logger.handlers), baslangic_sayisi)
+
+    def test_loglama_yapilandir_mukerrer_eklemez(self):
+        from tulpar.yardimcilar import loglama_yapilandir
+        kok_logger = logging.getLogger()
+        loglama_yapilandir()
+        sayi1 = len(kok_logger.handlers)
+        loglama_yapilandir()
+        sayi2 = len(kok_logger.handlers)
+        self.assertEqual(sayi1, sayi2)
+
+
 class TestReportWriter(unittest.TestCase):
     def test_gecerli_json_ciktisi(self):
         from tulpar.rapor import ReportWriter
