@@ -4,9 +4,10 @@ import logging
 from tulpar.sabitler import (
     CDN_BOOTSTRAP_URL, CDN_VIS_NETWORK_URL,
     SRI_BOOTSTRAP_HASH, SRI_VIS_NETWORK_HASH,
-    YEREL_BOOTSTRAP_ADI, YEREL_VIS_NETWORK_ADI
+    YEREL_BOOTSTRAP_ADI, YEREL_VIS_NETWORK_ADI,
+    SURUM
 )
-from tulpar.yardimcilar import cevrimdisi_asset_indir, csv_raporu_yaz, markdown_raporu_yaz, dugum_zafiyet_esleme_olustur
+from tulpar.yardimcilar import cevrimdisi_asset_indir, csv_raporu_yaz, markdown_raporu_yaz, sarif_raporu_yaz, dugum_zafiyet_esleme_olustur
 
 logger = logging.getLogger('Tulpar')
 
@@ -19,8 +20,9 @@ class AttackGraphGenerator:
         self.cevrimdisi_dosyalar = {}
 
     def _asset_yollari_belirle(self):
-        bootstrap_url = CDN_BOOTSTRAP_URL
-        vis_network_url = CDN_VIS_NETWORK_URL
+        surum_eki = "?v=" + SURUM
+        bootstrap_url = CDN_BOOTSTRAP_URL + surum_eki
+        vis_network_url = CDN_VIS_NETWORK_URL + surum_eki
         bootstrap_integrity = SRI_BOOTSTRAP_HASH
         vis_network_integrity = SRI_VIS_NETWORK_HASH
 
@@ -238,6 +240,13 @@ class AttackGraphGenerator:
             "            return '#3b82f6';",
             "        }",
             "",
+"        function htmlKacis(metin) {",
+            "            if (!metin) return '';",
+            "            var gecici = document.createElement('div');",
+            "            gecici.appendChild(document.createTextNode(metin));",
+            "            return gecici.innerHTML;",
+            "        }",
+            "",
             "        function kritiklik_rozet_sinifi_getir(kritiklik) {",
             "            var kucuk = kritiklik.toLowerCase();",
             "            if (kucuk.indexOf('kritik') !== -1) return 'kritiklik_rozeti kritik';",
@@ -262,8 +271,8 @@ class AttackGraphGenerator:
             "",
             "            var html_icerik = '';",
             "            html_icerik += '<div class=\"zafiyet_karti\">';",
-            "            html_icerik += '<div class=\"kart_baslik\">' + zafiyet_adi + '</div>';",
-            "            html_icerik += '<span class=\"' + rozet_sinifi + '\">' + veri.kritiklik + '</span>';",
+            "            html_icerik += '<div class=\"kart_baslik\">' + htmlKacis(zafiyet_adi) + '</div>';",
+            "            html_icerik += '<span class=\"' + rozet_sinifi + '\">' + htmlKacis(veri.kritiklik) + '</span>';",
             "            html_icerik += '<div class=\"risk_skoru_cubugu\">';",
             "            html_icerik += '<span class=\"risk_degeri\">' + risk_skoru + '</span>';",
             "            html_icerik += '<span style=\"font-size:0.65rem;color:#64748b;\">/10 Risk Skoru</span>';",
@@ -276,23 +285,23 @@ class AttackGraphGenerator:
             "            }",
             "            html_icerik += '<div class=\"detay_bolum\">';",
             "            html_icerik += '<div class=\"detay_baslik\">Aciklama</div>';",
-            "            html_icerik += '<div class=\"detay_metin\">' + veri.aciklama + '</div>';",
+            "            html_icerik += '<div class=\"detay_metin\">' + htmlKacis(veri.aciklama) + '</div>';",
             "            html_icerik += '</div>';",
             "            html_icerik += '<div class=\"detay_bolum\">';",
             "            html_icerik += '<div class=\"detay_baslik\">CloudTrail Izi</div>';",
-            "            html_icerik += '<div class=\"detay_metin\">' + veri.cloudtrail_izi + '</div>';",
+            "            html_icerik += '<div class=\"detay_metin\">' + htmlKacis(veri.cloudtrail_izi) + '</div>';",
             "            html_icerik += '</div>';",
             "            html_icerik += '<div class=\"detay_bolum\">';",
             "            html_icerik += '<div class=\"detay_baslik\">Somuru Komutu</div>';",
-            "            html_icerik += '<div class=\"komut_kutusu\">' + veri.somuru_komutu + '</div>';",
+            "            html_icerik += '<div class=\"komut_kutusu\">' + htmlKacis(veri.somuru_komutu) + '</div>';",
             "            html_icerik += '</div>';",
             "            html_icerik += '<div class=\"detay_bolum\">';",
             "            html_icerik += '<div class=\"detay_baslik\">Mavi Takim Savunma Onerisi</div>';",
-            "            html_icerik += '<div class=\"detay_metin\">' + veri.mavi_takim + '</div>';",
+            "            html_icerik += '<div class=\"detay_metin\">' + htmlKacis(veri.mavi_takim) + '</div>';",
             "            html_icerik += '</div>';",
             "            html_icerik += '<div class=\"detay_bolum\">';",
             "            html_icerik += '<div class=\"detay_baslik\">Sikilastirma Onerisi</div>';",
-            "            html_icerik += '<div class=\"detay_metin\">' + veri.sikiastirma + '</div>';",
+            "            html_icerik += '<div class=\"detay_metin\">' + htmlKacis(veri.sikiastirma) + '</div>';",
             "            html_icerik += '</div>';",
             "            html_icerik += '</div>';",
             "",
@@ -311,7 +320,7 @@ class AttackGraphGenerator:
             "                } else if (dugum_etiketi === 'AdministratorAccess' || dugum_etiketi === 'YoneticiRolu_Ustlenme') {",
             "                    var hedef_html = '';",
             "                    hedef_html += '<div class=\"zafiyet_karti\">';",
-            "                    hedef_html += '<div class=\"kart_baslik\">' + dugum_etiketi + '</div>';",
+            "                    hedef_html += '<div class=\"kart_baslik\">' + htmlKacis(dugum_etiketi) + '</div>';",
             "                    hedef_html += '<span class=\"' + kritiklik_rozet_sinifi_getir('Kritik') + '\">Kritik Hedef</span>';",
             "                    hedef_html += '<div class=\"risk_skoru_cubugu\"><span class=\"risk_degeri\">10.0</span><span style=\"font-size:0.65rem;color:#64748b;\">/10 Risk Skoru</span><div class=\"risk_cubugu_arka\"><div class=\"risk_cubugu_dolgu\" style=\"width:100%;background:#ef4444;\"></div></div></div>';",
             "                    hedef_html += '<div class=\"detay_bolum\">';",
@@ -357,6 +366,7 @@ class AttackGraphGenerator:
             "</body>",
             "</html>"
         ])
+        os.makedirs(os.path.dirname(os.path.abspath(self.cikti_dosyasi)) or '.', exist_ok=True)
         with open(self.cikti_dosyasi, 'w', encoding='utf-8') as dosya:
             dosya.write(html_icerigi)
         logger.info("HTML saldiri grafi olusturuldu: %s", self.cikti_dosyasi)
@@ -367,6 +377,7 @@ class ReportWriter:
         self.cikti_dosyasi = cikti_dosyasi
 
     def rapor_yaz(self):
+        os.makedirs(os.path.dirname(os.path.abspath(self.cikti_dosyasi)) or '.', exist_ok=True)
         rapor_icerigi = {
             "arac_adi": "Tulpar",
             "rapor_tarihi": "Otomatik Uretildi",
@@ -383,11 +394,15 @@ class CokluFormatRaporlayici:
         self.scp_durumu = scp_durumu
 
     def formatli_rapor_yaz(self, cikti_dosyasi, format_turu):
+        os.makedirs(os.path.dirname(os.path.abspath(cikti_dosyasi)) or '.', exist_ok=True)
         if format_turu == 'csv':
             csv_raporu_yaz(self.bulgular, cikti_dosyasi)
             return True
         elif format_turu == 'markdown':
             markdown_raporu_yaz(self.bulgular, cikti_dosyasi, self.scp_durumu)
+            return True
+        elif format_turu == 'sarif':
+            sarif_raporu_yaz(self.bulgular, cikti_dosyasi)
             return True
         else:
             logger.error("Desteklenmeyen format: %s", format_turu)

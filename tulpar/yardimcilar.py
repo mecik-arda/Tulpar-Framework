@@ -12,6 +12,34 @@ logger = logging.getLogger('Tulpar')
 _VEKTOR_ONBELLEGI = None
 
 
+ZORUNLU_VEKTOR_ALANLARI = ['vektor_adi', 'turkce_baslik', 'gerekli_izinler', 'risk_seviyesi', 'risk_skoru', 'aciklama', 'iyilestirme', 'cloudtrail_izi', 'somuru_komutu', 'mavi_takim_onerisi', 'saldiri_grafi_dugumu', 'saldiri_grafi_hedefi']
+
+
+def vektor_onbellegi_temizle():
+    global _VEKTOR_ONBELLEGI
+    _VEKTOR_ONBELLEGI = None
+    logger.debug("Vektor onbellegi temizlendi")
+
+
+def vektor_dogrula(vektor, indeks):
+    for alan in ZORUNLU_VEKTOR_ALANLARI:
+        if alan not in vektor:
+            raise ValueError("Vektor {}: '{}' alani eksik".format(indeks, alan))
+    if not isinstance(vektor.get('gerekli_izinler'), list):
+        raise ValueError("Vektor {}: 'gerekli_izinler' bir liste olmalidir".format(indeks))
+    for grup_idx, izin_grubu in enumerate(vektor.get('gerekli_izinler', [])):
+        if not isinstance(izin_grubu, list):
+            raise ValueError("Vektor {}: gerekli_izinler[{}] bir liste olmalidir".format(indeks, grup_idx))
+        for izin_idx, izin in enumerate(izin_grubu):
+            if not isinstance(izin, str):
+                raise ValueError("Vektor {}: gerekli_izinler[{}][{}] bir metin olmalidir".format(indeks, grup_idx, izin_idx))
+    if not isinstance(vektor.get('risk_skoru'), (int, float)):
+        raise ValueError("Vektor {}: 'risk_skoru' sayisal bir deger olmalidir".format(indeks))
+    gecerli_seviyeler = ['Kritik', 'Yuksek', 'Orta', 'Dusuk', 'Bilgilendirme']
+    if vektor.get('risk_seviyesi') not in gecerli_seviyeler:
+        raise ValueError("Vektor {}: 'risk_seviyesi' gecersiz: {}".format(indeks, vektor.get('risk_seviyesi')))
+
+
 def vektorleri_yukle():
     global _VEKTOR_ONBELLEGI
     if _VEKTOR_ONBELLEGI is not None:
@@ -21,14 +49,19 @@ def vektorleri_yukle():
     try:
         with open(json_yolu, 'r', encoding='utf-8') as dosya:
             veri = json.load(dosya)
+        for idx, vektor in enumerate(veri.get('vektorler', [])):
+            try:
+                vektor_dogrula(vektor, idx + 1)
+            except ValueError as hata:
+                logger.warning("Vektor dogrulama hatasi: %s", hata)
         _VEKTOR_ONBELLEGI = veri
-        logger.info("Vektor tanimlari yuklendi: %s", json_yolu)
+        logger.info("Vektor tanimlari yuklendi ve dogrulandi: %s", json_yolu)
         return veri
     except FileNotFoundError:
         logger.error("Vektor tanim dosyasi bulunamadi: %s", json_yolu)
         return {"vektorler": [], "ozel_durumlar": {}}
     except json.JSONDecodeError as hata:
-        logger.error("Vektor JSON dosyasi bozuk: %s", hata)
+        logger.error("Vektor JSON dosyasi bozuk (satir %s, kolon %s): %s", hata.lineno, hata.colno, hata.msg)
         return {"vektorler": [], "ozel_durumlar": {}}
 
 
@@ -70,6 +103,9 @@ def risk_skoru_tablosu_olustur(vektor_verisi=None):
     return tablo
 
 def loglama_yapilandir():
+    kok_logger = logging.getLogger()
+    if kok_logger.hasHandlers():
+        return
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -106,6 +142,7 @@ def sri_hash_hesapla(dosya_yolu):
     return 'sha384-' + sha384_hash.hexdigest()
 
 def cevrimdisi_asset_indir(hedef_klasor, bootstrap_url, vis_network_url):
+    from tulpar.sabitler import SRI_BOOTSTRAP_HASH, SRI_VIS_NETWORK_HASH
     indirilen_dosyalar = {}
     os.makedirs(hedef_klasor, exist_ok=True)
     bootstrap_yerel_yol = os.path.join(hedef_klasor, 'bootstrap.min.css')
@@ -113,16 +150,28 @@ def cevrimdisi_asset_indir(hedef_klasor, bootstrap_url, vis_network_url):
     try:
         logger.info("Cevrimdisi asset indiriliyor: Bootstrap CSS...")
         urllib.request.urlretrieve(bootstrap_url, bootstrap_yerel_yol)
-        indirilen_dosyalar['bootstrap'] = bootstrap_yerel_yol
-        logger.info("Bootstrap CSS indirildi: %s", bootstrap_yerel_yol)
+        indirilen_hash = sri_hash_hesapla(bootstrap_yerel_yol)
+        if indirilen_hash != SRI_BOOTSTRAP_HASH:
+            logger.warning("Bootstrap CSS hash uyusmazligi! Beklenen: %s, Indirilen: %s. Dosya bozuk veya manipule edilmis olabilir.", SRI_BOOTSTRAP_HASH, indirilen_hash)
+            os.unlink(bootstrap_yerel_yol)
+            indirilen_dosyalar['bootstrap'] = None
+        else:
+            indirilen_dosyalar['bootstrap'] = bootstrap_yerel_yol
+            logger.info("Bootstrap CSS indirildi ve dogrulandi: %s", bootstrap_yerel_yol)
     except Exception as hata:
         logger.warning("Bootstrap CSS indirilemedi: %s. CDN baglantisina geri donuluyor.", hata)
         indirilen_dosyalar['bootstrap'] = None
     try:
         logger.info("Cevrimdisi asset indiriliyor: vis-network JS...")
         urllib.request.urlretrieve(vis_network_url, vis_network_yerel_yol)
-        indirilen_dosyalar['vis_network'] = vis_network_yerel_yol
-        logger.info("vis-network JS indirildi: %s", vis_network_yerel_yol)
+        indirilen_hash = sri_hash_hesapla(vis_network_yerel_yol)
+        if indirilen_hash != SRI_VIS_NETWORK_HASH:
+            logger.warning("vis-network JS hash uyusmazligi! Beklenen: %s, Indirilen: %s. Dosya bozuk veya manipule edilmis olabilir.", SRI_VIS_NETWORK_HASH, indirilen_hash)
+            os.unlink(vis_network_yerel_yol)
+            indirilen_dosyalar['vis_network'] = None
+        else:
+            indirilen_dosyalar['vis_network'] = vis_network_yerel_yol
+            logger.info("vis-network JS indirildi ve dogrulandi: %s", vis_network_yerel_yol)
     except Exception as hata:
         logger.warning("vis-network JS indirilemedi: %s. CDN baglantisina geri donuluyor.", hata)
         indirilen_dosyalar['vis_network'] = None
@@ -246,6 +295,23 @@ def konfigurasyon_yukle(konfig_dosyasi):
         logger.error("Konfigurasyon dosyasi yuklenemedi: %s", hata)
         return None
 
+def servis_adi_ayristir(iam_eylemi):
+    if ':' not in iam_eylemi:
+        return iam_eylemi, iam_eylemi
+    servis, eylem = iam_eylemi.split(':', 1)
+    return servis, eylem
+
+
+def servis_eylem_listesini_grupla(eylem_listesi):
+    gruplar = {}
+    for eylem in eylem_listesi:
+        servis, _ = servis_adi_ayristir(eylem)
+        if servis not in gruplar:
+            gruplar[servis] = []
+        gruplar[servis].append(eylem)
+    return gruplar
+
+
 def onbellek_suresi_gecerli_mi(onbellek_dosyasi, maksimum_sure_saat=24):
     if not os.path.exists(onbellek_dosyasi):
         return False
@@ -253,3 +319,137 @@ def onbellek_suresi_gecerli_mi(onbellek_dosyasi, maksimum_sure_saat=24):
     guncel_zaman = datetime.now().timestamp()
     fark_saat = (guncel_zaman - dosya_zamani) / 3600.0
     return fark_saat < maksimum_sure_saat
+
+
+def sarif_raporu_yaz(bulgular, cikti_dosyasi, arac_adi="Tulpar"):
+    from tulpar.sabitler import SURUM
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(cikti_dosyasi)) or '.', exist_ok=True)
+        sonuclar = []
+        for idx, bulgu in enumerate(bulgular):
+            risk = bulgu.get('risk_skoru', 5.0)
+            if isinstance(risk, (int, float)):
+                if risk >= 9.0:
+                    seviye = "error"
+                elif risk >= 7.0:
+                    seviye = "warning"
+                else:
+                    seviye = "note"
+            else:
+                seviye = "warning"
+            konum = {
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": "iam:{}".format(bulgu.get('cloudtrail_izi', 'bilinmeyen').split(',')[0].strip())
+                    },
+                    "region": {
+                        "startLine": 1,
+                        "startColumn": 1
+                    }
+                }
+            }
+            sonuc = {
+                "ruleId": bulgu.get('zafiyet_adi', 'Bilinmeyen').replace(' ', '_')[:80],
+                "ruleIndex": idx,
+                "level": seviye,
+                "message": {
+                    "text": "{} [Risk: {}/10] - {}".format(
+                        bulgu.get('zafiyet_adi', 'Bilinmeyen'),
+                        bulgu.get('risk_skoru', '-'),
+                        bulgu.get('aciklama', '')
+                    )
+                },
+                "locations": [konum],
+                "properties": {
+                    "kritiklik_seviyesi": bulgu.get('kritiklik_seviyesi', 'Belirsiz'),
+                    "risk_skoru": str(bulgu.get('risk_skoru', '-')),
+                    "cloudtrail_izi": bulgu.get('cloudtrail_izi', ''),
+                    "sikiastirma_onerisi": bulgu.get('sikiastirma_onerisi', ''),
+                    "somuru_komutu": bulgu.get('somuru_komutu', ''),
+                    "mavi_takim_onerisi": bulgu.get('mavi_takim_onerisi', '')
+                }
+            }
+            sonuclar.append(sonuc)
+        arac = {
+            "driver": {
+                "name": arac_adi,
+                "organization": "Tulpar Framework",
+                "semanticVersion": SURUM,
+                "rules": [
+                    {
+                        "id": b.get('zafiyet_adi', 'Bilinmeyen').replace(' ', '_')[:80],
+                        "name": b.get('zafiyet_adi', 'Bilinmeyen'),
+                        "shortDescription": {
+                            "text": b.get('aciklama', '')[:500]
+                        },
+                        "helpUri": "https://github.com/mecik-arda/Tulpar-Framework"
+                    }
+                    for b in bulgular
+                ]
+            }
+        }
+        sarif_verisi = {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+                {
+                    "tool": arac,
+                    "results": sonuclar
+                }
+            ]
+        }
+        with open(cikti_dosyasi, 'w', encoding='utf-8') as dosya:
+            json.dump(sarif_verisi, dosya, ensure_ascii=False, indent=2)
+        logger.info("SARIF raporu olusturuldu: %s", cikti_dosyasi)
+        return True
+    except Exception as hata:
+        logger.error("SARIF raporu olusturulamadi: %s", hata)
+        return False
+
+
+def rapor_karsilastir(onceki_dosya, yeni_dosya, karsilastirma_ciktisi):
+    try:
+        with open(onceki_dosya, 'r', encoding='utf-8') as dosya:
+            onceki_veri = json.load(dosya)
+        with open(yeni_dosya, 'r', encoding='utf-8') as dosya:
+            yeni_veri = json.load(dosya)
+    except FileNotFoundError as hata:
+        logger.error("Karsilastirma dosyasi bulunamadi: %s", hata)
+        return None
+    except json.JSONDecodeError as hata:
+        logger.error("Karsilastirma dosyasi gecersiz JSON: %s", hata)
+        return None
+    onceki_adlar = {b.get('zafiyet_adi', '') for b in onceki_veri.get('bulgular', [])}
+    yeni_adlar = {b.get('zafiyet_adi', '') for b in yeni_veri.get('bulgular', [])}
+    yeni_eklenenler = yeni_adlar - onceki_adlar
+    kapananlar = onceki_adlar - yeni_adlar
+    devam_edenler = onceki_adlar & yeni_adlar
+    onceki_yeni_bulgu_listesi = [b for b in yeni_veri.get('bulgular', []) if b.get('zafiyet_adi', '') in yeni_eklenenler]
+    onceki_kapanan_bulgu_listesi = [b for b in onceki_veri.get('bulgular', []) if b.get('zafiyet_adi', '') in kapananlar]
+    onceki_devam_bulgu_listesi = [b for b in yeni_veri.get('bulgular', []) if b.get('zafiyet_adi', '') in devam_edenler]
+    fark_raporu = {
+        "arac_adi": "Tulpar Diff Raporu",
+        "rapor_tarihi": datetime.now().isoformat(),
+        "onceki_dosya": onceki_dosya,
+        "yeni_dosya": yeni_dosya,
+        "ozet": {
+            "onceki_zafiyet_sayisi": onceki_veri.get('zafiyet_sayisi', 0),
+            "yeni_zafiyet_sayisi": yeni_veri.get('zafiyet_sayisi', 0),
+            "yeni_eklenen_zafiyet_sayisi": len(yeni_eklenenler),
+            "kapanan_zafiyet_sayisi": len(kapananlar),
+            "devam_eden_zafiyet_sayisi": len(devam_edenler)
+        },
+        "yeni_eklenen_zafiyetler": onceki_yeni_bulgu_listesi,
+        "kapanan_zafiyetler": onceki_kapanan_bulgu_listesi,
+        "devam_eden_zafiyetler": onceki_devam_bulgu_listesi
+    }
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(karsilastirma_ciktisi)) or '.', exist_ok=True)
+        with open(karsilastirma_ciktisi, 'w', encoding='utf-8') as dosya:
+            json.dump(fark_raporu, dosya, ensure_ascii=False, indent=4)
+        logger.info("Karsilastirma raporu olusturuldu: %s (Yeni: %d, Kapanan: %d, Devam: %d)",
+                    karsilastirma_ciktisi, len(yeni_eklenenler), len(kapananlar), len(devam_edenler))
+        return fark_raporu
+    except Exception as hata:
+        logger.error("Karsilastirma raporu yazilamadi: %s", hata)
+        return None

@@ -16,4 +16,4 @@ SRI_VIS_NETWORK_HASH = 'sha384-Kp7cMaDnHOrgpE8FT6l7tUuGIo7kBcBVcttockpXN/whrsQBc
 YEREL_BOOTSTRAP_ADI = 'bootstrap.min.css'
 YEREL_VIS_NETWORK_ADI = 'vis-network.min.js'
 
-CIKTI_FORMATLARI = ['json', 'html', 'csv', 'markdown']
+CIKTI_FORMATLARI = ['json', 'html', 'csv', 'markdown', 'sarif']

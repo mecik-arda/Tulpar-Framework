@@ -2,7 +2,7 @@ name: Tulpar AWS IAM Guvenlik Taramasi
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '7 3 * * *'
   workflow_dispatch:
     inputs:
       aws_profil:
@@ -18,14 +18,43 @@ on:
           - none
           - csv
           - markdown
+          - sarif
   push:
     paths:
       - 'tulpar/**'
-      - 'tulpar.py'
+      - 'test_tulpar.py'
       - 'requirements.txt'
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu klonla
+        uses: actions/checkout@v4
+
+      - name: Python kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: pip onbellegini yukle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Bagimliliklari yukle
+        run: |
+          pip install -r requirements.txt
+          pip install tqdm moto pytest
+
+      - name: Testleri calistir
+        run: python -m pytest test_tulpar.py -v
+
   tulpar_tarama:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -39,6 +68,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: pip onbellegini yukle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Bagimliliklari yukle
         run: |
@@ -57,9 +94,9 @@ jobs:
           AWS_PROFILE: ${{ github.event.inputs.aws_profil }}
         run: |
           if [ -n "$AWS_PROFILE" ]; then
-            python -m tulpar --aws-profil "$AWS_PROFILE" --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md
+            python -m tulpar --aws-profil "$AWS_PROFILE" --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md --sarif-cikti tulpar_rapor.sarif
           else
-            python -m tulpar --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md
+            python -m tulpar --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md --sarif-cikti tulpar_rapor.sarif
           fi
 
       - name: JSON raporu yukle
@@ -80,6 +117,13 @@ jobs:
         with:
           name: tulpar-rapor-markdown
           path: tulpar_rapor.md
+
+      - name: SARIF raporu yukle
+        if: github.event.inputs.format == 'sarif' || github.event_name == 'schedule' || github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tulpar_rapor.sarif
+          category: tulpar-iam
 
       - name: Onbellek dosyasini yukle
         uses: actions/upload-artifact@v4

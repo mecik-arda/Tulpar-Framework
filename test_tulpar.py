@@ -61,6 +61,30 @@ class TestGekSizmaScannerKimlik(unittest.TestCase):
         sonuc = self.tarayici.kimlik_bilgilerini_getir()
         self.assertFalse(sonuc)
 
+    @patch('boto3.Session')
+    def test_sadece_kontrol_basarili(self, mock_session_sinifi):
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test_kullanici',
+            'Account': '123456789012',
+            'UserId': 'AIDATESTKULLANICIID'
+        }
+        mock_iam = MagicMock()
+        mock_oturum = MagicMock()
+        mock_oturum.client.side_effect = lambda servis, **kwargs: mock_sts if servis == 'sts' else mock_iam
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        self.tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        self.tarayici.sts_istemicisi = mock_sts
+        self.tarayici.iam_istemicisi = mock_iam
+
+        sonuc = self.tarayici.kimlik_bilgilerini_getir()
+        self.assertTrue(sonuc)
+        self.assertIn('arn', self.tarayici.kimlik_bilgileri)
+        self.assertIn('hesap_id', self.tarayici.kimlik_bilgileri)
+        self.assertIn('kullanici_id', self.tarayici.kimlik_bilgileri)
+
 
 class TestGekSizmaScannerHakSimulasyonu(unittest.TestCase):
     def setUp(self):
@@ -133,6 +157,93 @@ class TestGekSizmaScannerHakSimulasyonu(unittest.TestCase):
         self.assertEqual(sonuc, 'UNKNOWN_RESTRICTED')
 
 
+class TestGekSizmaScannerSCPKontrolu(unittest.TestCase):
+    def setUp(self):
+        self.tarayici = None
+
+    @patch('boto3.Session')
+    def test_scp_kontrolu_organizations_yok(self, mock_session_sinifi):
+        mock_org = MagicMock()
+        mock_org.describe_organization.return_value = {'Organization': {}}
+        mock_sts = MagicMock()
+        mock_iam = MagicMock()
+        mock_oturum = MagicMock()
+        def client_secici(servis, **kwargs):
+            if servis == 'sts': return mock_sts
+            if servis == 'iam': return mock_iam
+            if servis == 'organizations': return mock_org
+            return MagicMock()
+        mock_oturum.client.side_effect = client_secici
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        self.tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        self.tarayici.sts_istemicisi = mock_sts
+        self.tarayici.iam_istemicisi = mock_iam
+
+        sonuc = self.tarayici.scp_kontrolu_yap()
+        self.assertFalse(sonuc)
+
+    @patch('boto3.Session')
+    def test_scp_kontrolu_access_denied(self, mock_session_sinifi):
+        hata_yaniti = {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}
+        mock_org = MagicMock()
+        mock_org.describe_organization.side_effect = ClientError(hata_yaniti, 'DescribeOrganization')
+        mock_oturum = MagicMock()
+        def client_secici(servis, **kwargs):
+            if servis == 'organizations': return mock_org
+            return MagicMock()
+        mock_oturum.client.side_effect = client_secici
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        self.tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+
+        sonuc = self.tarayici.scp_kontrolu_yap()
+        self.assertIsNone(sonuc)
+
+
+class TestGekSizmaScannerBolgeListeleme(unittest.TestCase):
+    def setUp(self):
+        self.tarayici = None
+
+    @patch('boto3.Session')
+    def test_bolgeleri_listele_basarili(self, mock_session_sinifi):
+        mock_ec2 = MagicMock()
+        mock_ec2.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'eu-west-1'},
+                {'RegionName': 'ap-southeast-1'}
+            ]
+        }
+        mock_oturum = MagicMock()
+        mock_oturum.client.side_effect = lambda servis, **kwargs: mock_ec2 if servis == 'ec2' else MagicMock()
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        self.tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+
+        sonuc = self.tarayici.bolgeleri_listele()
+        self.assertEqual(len(sonuc), 3)
+        self.assertIn('us-east-1', sonuc)
+
+    @patch('boto3.Session')
+    def test_bolgeleri_listele_access_denied(self, mock_session_sinifi):
+        hata_yaniti = {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}
+        mock_ec2 = MagicMock()
+        mock_ec2.describe_regions.side_effect = ClientError(hata_yaniti, 'DescribeRegions')
+        mock_oturum = MagicMock()
+        mock_oturum.client.side_effect = lambda servis, **kwargs: mock_ec2 if servis == 'ec2' else MagicMock()
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        self.tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+
+        sonuc = self.tarayici.bolgeleri_listele()
+        self.assertGreater(len(sonuc), 0)
+
+
 class TestExploitationMappingEngine(unittest.TestCase):
     def setUp(self):
         self.motor = None
@@ -177,6 +288,35 @@ class TestExploitationMappingEngine(unittest.TestCase):
                 {'EvalActionName': 'iam:PutRolePolicy', 'EvalDecision': 'implicitDeny'},
                 {'EvalActionName': 'iam:AttachRolePolicy', 'EvalDecision': 'implicitDeny'},
                 {'EvalActionName': 'lambda:UpdateFunctionConfiguration', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:CreatePolicy', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'ec2:AssociateIamInstanceProfile', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'lambda:AddPermission', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'lambda:CreateEventSourceMapping', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:CreateRole', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:DeleteRolePolicy', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:UpdateSAMLProvider', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'sts:GetFederationToken', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'dynamodb:PutItem', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'sns:Publish', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'sqs:SendMessage', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'kms:CreateGrant', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 's3:PutBucketNotification', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 's3:PutBucketPolicy', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:UploadSigningCertificate', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:UpdateOpenIDConnectProviderThumbprint', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:CreateSAMLProvider', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'cloudformation:CreateChangeSet', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'cloudformation:ExecuteChangeSet', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'apigateway:POST', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'ecs:RegisterTaskDefinition', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'ecs:RunTask', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'eks:CreateCluster', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'mediaconvert:CreateJob', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:CreateInstanceProfile', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:AddRoleToInstanceProfile', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'codestar:CreateProject', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'redshift:CreateCluster', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'ec2:GetPasswordData', 'EvalDecision': 'implicitDeny'},
             ]
         }
         mock_ec2_global = MagicMock()
@@ -298,6 +438,133 @@ class TestExploitationMappingEngine(unittest.TestCase):
         zafiyet_adlari = [z['zafiyet_adi'] for z in self.motor.bulunan_zafiyetler]
         self.assertIn('Bilinmeyen Yetki Durumu', zafiyet_adlari)
 
+    @patch('boto3.Session')
+    def test_hizli_mod_vektor_sayisi(self, mock_session_sinifi):
+        from tulpar.analiz import ExploitationMappingEngine
+        from tulpar.tarayici import GekSizmaScanner
+        from tulpar.yardimcilar import vektorleri_yukle, vektor_onbellegi_temizle
+
+        vektor_onbellegi_temizle()
+        mock_oturum = MagicMock()
+        mock_session_sinifi.return_value = mock_oturum
+
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        motor = ExploitationMappingEngine(tarayici)
+
+        vektor_verisi = vektorleri_yukle()
+        tum_vektorler = vektor_verisi.get('vektorler', [])
+        kritik_vektorler = sorted(tum_vektorler, key=lambda v: v.get('risk_skoru', 0), reverse=True)[:15]
+
+        self.assertEqual(len(kritik_vektorler), 15)
+        self.assertGreater(kritik_vektorler[0]['risk_skoru'], 7.0)
+
+
+class TestYardimcilarVektorYukleme(unittest.TestCase):
+    def setUp(self):
+        from tulpar.yardimcilar import vektor_onbellegi_temizle
+        vektor_onbellegi_temizle()
+
+    def test_vektorleri_yukle_basarili(self):
+        from tulpar.yardimcilar import vektorleri_yukle
+        veri = vektorleri_yukle()
+        self.assertIn('vektorler', veri)
+        self.assertIsInstance(veri['vektorler'], list)
+        self.assertGreater(len(veri['vektorler']), 0)
+
+    def test_vektor_dogrula_gecerli(self):
+        from tulpar.yardimcilar import vektor_dogrula
+        gecerli_vektor = {
+            "vektor_adi": "Test",
+            "turkce_baslik": "Test Vektoru",
+            "gerekli_izinler": [["iam:TestAction"]],
+            "risk_seviyesi": "Kritik",
+            "risk_skoru": 9.0,
+            "aciklama": "Test aciklamasi",
+            "iyilestirme": "Test onerisi",
+            "cloudtrail_izi": "TestAction",
+            "somuru_komutu": "aws test",
+            "mavi_takim_onerisi": "Test mavi takim",
+            "saldiri_grafi_dugumu": "TestDugum",
+            "saldiri_grafi_hedefi": "AdministratorAccess"
+        }
+        try:
+            vektor_dogrula(gecerli_vektor, 1)
+        except ValueError:
+            self.fail("vektor_dogrula gecerli vektor icin hata firlatti")
+
+    def test_vektor_dogrula_eksik_alan(self):
+        from tulpar.yardimcilar import vektor_dogrula
+        eksik_vektor = {"vektor_adi": "Test"}
+        with self.assertRaises(ValueError):
+            vektor_dogrula(eksik_vektor, 1)
+
+    def test_vektor_dogrula_gecersiz_risk_skoru(self):
+        from tulpar.yardimcilar import vektor_dogrula
+        gecersiz_vektor = {
+            "vektor_adi": "Test",
+            "turkce_baslik": "Test",
+            "gerekli_izinler": [],
+            "risk_seviyesi": "Kritik",
+            "risk_skoru": "dokuz",
+            "aciklama": "Test",
+            "iyilestirme": "Test",
+            "cloudtrail_izi": "Test",
+            "somuru_komutu": "Test",
+            "mavi_takim_onerisi": "Test",
+            "saldiri_grafi_dugumu": "Test",
+            "saldiri_grafi_hedefi": "Test"
+        }
+        with self.assertRaises(ValueError):
+            vektor_dogrula(gecersiz_vektor, 1)
+
+    def test_vektor_dogrula_gecersiz_seviye(self):
+        from tulpar.yardimcilar import vektor_dogrula
+        gecersiz_vektor = {
+            "vektor_adi": "Test",
+            "turkce_baslik": "Test",
+            "gerekli_izinler": [["test:Test"]],
+            "risk_seviyesi": "CokKritik",
+            "risk_skoru": 9.0,
+            "aciklama": "Test",
+            "iyilestirme": "Test",
+            "cloudtrail_izi": "Test",
+            "somuru_komutu": "Test",
+            "mavi_takim_onerisi": "Test",
+            "saldiri_grafi_dugumu": "Test",
+            "saldiri_grafi_hedefi": "Test"
+        }
+        with self.assertRaises(ValueError):
+            vektor_dogrula(gecersiz_vektor, 1)
+
+    def test_vektor_onbellegi_temizle(self):
+        from tulpar.yardimcilar import vektorleri_yukle, vektor_onbellegi_temizle
+        vektor_onbellegi_temizle()
+        veri1 = vektorleri_yukle()
+        self.assertIsNotNone(veri1)
+        vektor_onbellegi_temizle()
+        veri2 = vektorleri_yukle()
+        self.assertIsNotNone(veri2)
+        self.assertEqual(len(veri1['vektorler']), len(veri2['vektorler']))
+
+    def test_kontrol_edilecek_eylemleri_derle(self):
+        from tulpar.yardimcilar import kontrol_edilecek_eylemleri_derle, vektor_onbellegi_temizle
+        vektor_onbellegi_temizle()
+        eylemler = kontrol_edilecek_eylemleri_derle()
+        self.assertIsInstance(eylemler, list)
+        self.assertGreater(len(eylemler), 0)
+        self.assertIn('iam:CreateNewPolicyVersion', eylemler)
+        self.assertIn('iam:PassRole', eylemler)
+
+    def test_dugum_zafiyet_esleme_olustur(self):
+        from tulpar.yardimcilar import dugum_zafiyet_esleme_olustur, vektor_onbellegi_temizle
+        vektor_onbellegi_temizle()
+        esleme = dugum_zafiyet_esleme_olustur()
+        self.assertIsInstance(esleme, dict)
+        self.assertGreater(len(esleme), 0)
+        for dugum, baslik in esleme.items():
+            self.assertIsInstance(dugum, str)
+            self.assertIsInstance(baslik, str)
+
 
 class TestReportWriter(unittest.TestCase):
     def test_gecerli_json_ciktisi(self):
@@ -331,6 +598,17 @@ class TestReportWriter(unittest.TestCase):
             if os.path.exists(gecici_dosya_yolu):
                 os.unlink(gecici_dosya_yolu)
 
+    def test_json_rapor_dizini_otomatik_olusturma(self):
+        from tulpar.rapor import ReportWriter
+
+        with tempfile.TemporaryDirectory() as gecici_dizin:
+            alt_dizin = os.path.join(gecici_dizin, 'alt', 'dizin')
+            cikti_yolu = os.path.join(alt_dizin, 'rapor.json')
+            bulgular = [{"zafiyet_adi": "Test", "kritiklik_seviyesi": "Orta"}]
+            rapor_yazici = ReportWriter(bulgular, cikti_yolu)
+            rapor_yazici.rapor_yaz()
+            self.assertTrue(os.path.exists(cikti_yolu))
+
 
 class TestAttackGraphGenerator(unittest.TestCase):
     def test_gecerli_html_ciktisi(self):
@@ -343,7 +621,7 @@ class TestAttackGraphGenerator(unittest.TestCase):
             {
                 "zafiyet_adi": "Politika Surumu Manipulasyonu",
                 "kritiklik_seviyesi": "Kritik",
-                "aciklama": "Test politika manipülasyonu aciklamasi",
+                "aciklama": "Test politika manipulasyonu aciklamasi",
                 "cloudtrail_izi": "CreateNewPolicyVersion",
                 "sikiastirma_onerisi": "Test sikilastirma onerisi",
                 "somuru_komutu": "aws iam create-policy-version",
@@ -372,6 +650,227 @@ class TestAttackGraphGenerator(unittest.TestCase):
         finally:
             if os.path.exists(gecici_dosya_yolu):
                 os.unlink(gecici_dosya_yolu)
+
+
+class TestCokluFormatRaporlayici(unittest.TestCase):
+    def test_csv_formatli_rapor(self):
+        from tulpar.rapor import CokluFormatRaporlayici
+        bulgular = [
+            {
+                "zafiyet_adi": "Test Zafiyeti",
+                "kritiklik_seviyesi": "Kritik",
+                "risk_skoru": 9.0,
+                "aciklama": "Test aciklamasi",
+                "cloudtrail_izi": "TestAction",
+                "sikiastirma_onerisi": "Test oneri",
+                "somuru_komutu": "test",
+                "mavi_takim_onerisi": "test oneri"
+            }
+        ]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            raporlayici = CokluFormatRaporlayici(bulgular)
+            sonuc = raporlayici.formatli_rapor_yaz(yol, 'csv')
+            self.assertTrue(sonuc)
+            with open(yol, 'r', encoding='utf-8') as dosya:
+                icerik = dosya.read()
+            self.assertIn('Test Zafiyeti', icerik)
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+    def test_markdown_formatli_rapor(self):
+        from tulpar.rapor import CokluFormatRaporlayici
+        bulgular = [
+            {
+                "zafiyet_adi": "Test Zafiyeti",
+                "kritiklik_seviyesi": "Kritik",
+                "risk_skoru": 9.0,
+                "aciklama": "Test aciklamasi",
+                "cloudtrail_izi": "TestAction",
+                "sikiastirma_onerisi": "Test oneri"
+            }
+        ]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            raporlayici = CokluFormatRaporlayici(bulgular, scp_durumu=False)
+            sonuc = raporlayici.formatli_rapor_yaz(yol, 'markdown')
+            self.assertTrue(sonuc)
+            with open(yol, 'r', encoding='utf-8') as dosya:
+                icerik = dosya.read()
+            self.assertIn('Test Zafiyeti', icerik)
+            self.assertIn('Tulpar AWS IAM', icerik)
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+    def test_sarif_formatli_rapor(self):
+        from tulpar.rapor import CokluFormatRaporlayici
+        bulgular = [
+            {
+                "zafiyet_adi": "Test Zafiyeti",
+                "kritiklik_seviyesi": "Kritik",
+                "risk_skoru": 9.5,
+                "aciklama": "Test aciklamasi",
+                "cloudtrail_izi": "TestAction",
+                "sikiastirma_onerisi": "Test oneri",
+                "somuru_komutu": "test",
+                "mavi_takim_onerisi": "test oneri"
+            }
+        ]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sarif', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            raporlayici = CokluFormatRaporlayici(bulgular)
+            sonuc = raporlayici.formatli_rapor_yaz(yol, 'sarif')
+            self.assertTrue(sonuc)
+            with open(yol, 'r', encoding='utf-8') as dosya:
+                icerik = json.load(dosya)
+            self.assertEqual(icerik['version'], '2.1.0')
+            self.assertIn('runs', icerik)
+            self.assertEqual(len(icerik['runs'][0]['results']), 1)
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+    def test_gecersiz_format(self):
+        from tulpar.rapor import CokluFormatRaporlayici
+        bulgular = [{"zafiyet_adi": "Test"}]
+        raporlayici = CokluFormatRaporlayici(bulgular)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xxx', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            sonuc = raporlayici.formatli_rapor_yaz(yol, 'xml')
+            self.assertFalse(sonuc)
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+
+class TestSarifRaporu(unittest.TestCase):
+    def test_sarif_raporu_yaz_basarili(self):
+        from tulpar.yardimcilar import sarif_raporu_yaz
+        bulgular = [
+            {
+                "zafiyet_adi": "Test Kritik Zafiyet",
+                "kritiklik_seviyesi": "Kritik",
+                "risk_skoru": 9.5,
+                "aciklama": "Test aciklamasi",
+                "cloudtrail_izi": "TestAction",
+                "sikiastirma_onerisi": "Test oneri",
+                "somuru_komutu": "test komut",
+                "mavi_takim_onerisi": "test mavi takim"
+            }
+        ]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sarif', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            sonuc = sarif_raporu_yaz(bulgular, yol)
+            self.assertTrue(sonuc)
+            with open(yol, 'r', encoding='utf-8') as dosya:
+                icerik = json.load(dosya)
+            self.assertEqual(icerik['version'], '2.1.0')
+            sonuclar = icerik['runs'][0]['results']
+            self.assertEqual(len(sonuclar), 1)
+            self.assertEqual(sonuclar[0]['level'], 'error')
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+    def test_sarif_raporu_orta_risk(self):
+        from tulpar.yardimcilar import sarif_raporu_yaz
+        bulgular = [{"zafiyet_adi": "Test Orta", "kritiklik_seviyesi": "Orta", "risk_skoru": 5.0, "aciklama": "Test"}]
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sarif', delete=False, encoding='utf-8') as gecici:
+            yol = gecici.name
+        try:
+            sarif_raporu_yaz(bulgular, yol)
+            with open(yol, 'r', encoding='utf-8') as dosya:
+                icerik = json.load(dosya)
+            self.assertEqual(icerik['runs'][0]['results'][0]['level'], 'note')
+        finally:
+            if os.path.exists(yol):
+                os.unlink(yol)
+
+
+class TestRaporKarsilastir(unittest.TestCase):
+    def setUp(self):
+        self.onceki_yol = None
+        self.yeni_yol = None
+        self.karsilastirma_yol = None
+
+    def test_rapor_karsilastir_yeni_eklenen(self):
+        from tulpar.yardimcilar import rapor_karsilastir
+        onceki = {
+            "arac_adi": "Tulpar",
+            "zafiyet_sayisi": 1,
+            "bulgular": [{"zafiyet_adi": "Eski Zafiyet", "kritiklik_seviyesi": "Kritik", "risk_skoru": 9.0}]
+        }
+        yeni = {
+            "arac_adi": "Tulpar",
+            "zafiyet_sayisi": 2,
+            "bulgular": [
+                {"zafiyet_adi": "Eski Zafiyet", "kritiklik_seviyesi": "Kritik", "risk_skoru": 9.0},
+                {"zafiyet_adi": "Yeni Zafiyet", "kritiklik_seviyesi": "Yuksek", "risk_skoru": 8.0}
+            ]
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g1:
+            json.dump(onceki, g1)
+            self.onceki_yol = g1.name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g2:
+            json.dump(yeni, g2)
+            self.yeni_yol = g2.name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g3:
+            self.karsilastirma_yol = g3.name
+        try:
+            fark = rapor_karsilastir(self.onceki_yol, self.yeni_yol, self.karsilastirma_yol)
+            self.assertIsNotNone(fark)
+            self.assertEqual(fark['ozet']['yeni_eklenen_zafiyet_sayisi'], 1)
+            self.assertEqual(fark['ozet']['kapanan_zafiyet_sayisi'], 0)
+            self.assertEqual(fark['ozet']['devam_eden_zafiyet_sayisi'], 1)
+        finally:
+            for yol in [self.onceki_yol, self.yeni_yol, self.karsilastirma_yol]:
+                if yol and os.path.exists(yol):
+                    os.unlink(yol)
+
+    def test_rapor_karsilastir_kapanan(self):
+        from tulpar.yardimcilar import rapor_karsilastir
+        onceki = {
+            "arac_adi": "Tulpar",
+            "zafiyet_sayisi": 2,
+            "bulgular": [
+                {"zafiyet_adi": "Kapanan Zafiyet", "kritiklik_seviyesi": "Orta", "risk_skoru": 5.0},
+                {"zafiyet_adi": "Devam Eden", "kritiklik_seviyesi": "Yuksek", "risk_skoru": 7.0}
+            ]
+        }
+        yeni = {
+            "arac_adi": "Tulpar",
+            "zafiyet_sayisi": 1,
+            "bulgular": [{"zafiyet_adi": "Devam Eden", "kritiklik_seviyesi": "Yuksek", "risk_skoru": 7.0}]
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g1:
+            json.dump(onceki, g1)
+            self.onceki_yol = g1.name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g2:
+            json.dump(yeni, g2)
+            self.yeni_yol = g2.name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as g3:
+            self.karsilastirma_yol = g3.name
+        try:
+            fark = rapor_karsilastir(self.onceki_yol, self.yeni_yol, self.karsilastirma_yol)
+            self.assertIsNotNone(fark)
+            self.assertEqual(fark['ozet']['yeni_eklenen_zafiyet_sayisi'], 0)
+            self.assertEqual(fark['ozet']['kapanan_zafiyet_sayisi'], 1)
+        finally:
+            for yol in [self.onceki_yol, self.yeni_yol, self.karsilastirma_yol]:
+                if yol and os.path.exists(yol):
+                    os.unlink(yol)
+
+    def test_rapor_karsilastir_dosya_yok(self):
+        from tulpar.yardimcilar import rapor_karsilastir
+        sonuc = rapor_karsilastir('/var/yok/dosya1.json', '/var/yok/dosya2.json', '/var/yok/cikti.json')
+        self.assertIsNone(sonuc)
 
 
 class TestCokluBolgeKaynakTarama(unittest.TestCase):
@@ -431,6 +930,36 @@ class TestCokluBolgeKaynakTarama(unittest.TestCase):
         kaynak_turleri = [b['kaynak_turu'] for b in sonuc]
         self.assertIn('EC2', kaynak_turleri)
         self.assertIn('Lambda', kaynak_turleri)
+
+    @patch('boto3.Session')
+    def test_paralel_bolge_tarama_tum_hatalar(self, mock_session_sinifi):
+        hata_yaniti = {'Error': {'Code': 'AccessDenied', 'Message': 'Denied'}}
+        mock_ec2_global = MagicMock()
+        mock_ec2_global.describe_regions.return_value = {
+            'Regions': [{'RegionName': 'us-east-1'}, {'RegionName': 'eu-west-1'}]
+        }
+        mock_ec2_bolgesel = MagicMock()
+        mock_ec2_bolgesel.describe_instances.side_effect = ClientError(hata_yaniti, 'DescribeInstances')
+        mock_lambda_bolgesel = MagicMock()
+        mock_lambda_bolgesel.list_functions.side_effect = ClientError(hata_yaniti, 'ListFunctions')
+        mock_oturum = MagicMock()
+        def client_secici(servis, **kwargs):
+            if servis == 'ec2':
+                if kwargs.get('region_name') == 'us-east-1' and not hasattr(mock_ec2_global, '_c'):
+                    mock_ec2_global._c = True
+                    return mock_ec2_global
+                return mock_ec2_bolgesel
+            if servis == 'lambda':
+                return mock_lambda_bolgesel
+            return MagicMock()
+        mock_oturum.client.side_effect = client_secici
+        mock_session_sinifi.return_value = mock_oturum
+
+        from tulpar.tarayici import GekSizmaScanner
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        tarayici.aktif_bolgeler = ['us-east-1', 'eu-west-1']
+        sonuc = tarayici.coklu_bolge_kaynak_tarama()
+        self.assertEqual(len(sonuc), 0)
 
 
 class TestAwsHataYonetimi(unittest.TestCase):

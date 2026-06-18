@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 from tulpar.yardimcilar import (
     loglama_yapilandir, onbellege_kaydet, onbellekten_yukle,
-    onbellek_suresi_gecerli_mi, konfigurasyon_yukle
+    onbellek_suresi_gecerli_mi, konfigurasyon_yukle, rapor_karsilastir,
+    vektorleri_yukle, sarif_raporu_yaz
 )
 from tulpar.tarayici import GekSizmaScanner
 from tulpar.analiz import ExploitationMappingEngine
@@ -14,6 +15,7 @@ from tulpar.rapor import ReportWriter, AttackGraphGenerator, CokluFormatRaporlay
 from tulpar.sabitler import SURUM, CIKTI_FORMATLARI
 
 logger = logging.getLogger('Tulpar')
+
 
 def ana_fonksiyon():
     loglama_yapilandir()
@@ -33,8 +35,18 @@ def ana_fonksiyon():
     arguman_isleyici.add_argument("--format", required=False, default="json", choices=CIKTI_FORMATLARI, help="Ek cikti formati: " + ", ".join(CIKTI_FORMATLARI))
     arguman_isleyici.add_argument("--format-cikti", required=False, default=None, help="Formatli cikti dosyasi yolu")
     arguman_isleyici.add_argument("--konfig", required=False, default=None, help="Konfigurasyon dosyasi (JSON veya YAML)")
+    arguman_isleyici.add_argument("--hizli", action="store_true", required=False, default=False, help="Sadece en kritik 15 vektoru tara (hizli triage)")
+    arguman_isleyici.add_argument("--sessiz", action="store_true", required=False, default=False, help="Sadece bulunan zafiyetleri JSON olarak stdout'a bas, loglari gosterme")
+    arguman_isleyici.add_argument("--sadece-kontrol", action="store_true", required=False, default=False, help="AWS baglantisini dogrula ve kimlik bilgisi testi yap, tarama yapma")
+    arguman_isleyici.add_argument("--karsilastir", required=False, default=None, help="Onceki JSON raporu ile karsilastirma yap (diff rapor)")
+    arguman_isleyici.add_argument("--karsilastirma-cikti", required=False, default="raporlar/tulpar_karsilastirma.json", help="Karsilastirma raporu cikti dosyasi")
+    arguman_isleyici.add_argument("--sarif-cikti", required=False, default=None, help="SARIF formatinda cikti dosyasi")
+    arguman_isleyici.add_argument("--thread-sayisi", required=False, type=int, default=5, help="Paralel bolge taramasi icin thread sayisi (varsayilan: 5)")
 
     argumanlar = arguman_isleyici.parse_args()
+
+    if argumanlar.sessiz:
+        logging.getLogger().setLevel(logging.ERROR)
 
     konfig = {}
     if argumanlar.konfig:
@@ -43,12 +55,43 @@ def ana_fonksiyon():
             logger.error("Konfigurasyon dosyasi yuklenemedi, varsayilan degerlerle devam ediliyor")
             konfig = {}
         for anahtar in ['erisim_anahtari', 'gizli_anahtar', 'oturum_belirteci', 'aws_profil',
-                         'json_cikti', 'html_cikti', 'onbellek', 'format', 'format_cikti', 'cevrimdisi']:
+                         'json_cikti', 'html_cikti', 'onbellek', 'format', 'format_cikti', 'cevrimdisi',
+                         'hizli', 'sessiz', 'sadece_kontrol', 'karsilastir', 'karsilastirma_cikti', 'sarif_cikti',
+                         'thread_sayisi']:
             konfig_anahtari = anahtar.replace('_', '-')
             if konfig_anahtari in konfig and getattr(argumanlar, anahtar) == arguman_isleyici.get_default(anahtar):
                 setattr(argumanlar, anahtar, konfig[konfig_anahtari])
 
     logger.info("Tulpar AWS IAM Yetki Yukseltme Tarayicisi v%s baslatiliyor...", SURUM)
+
+    if argumanlar.karsilastir:
+        if not os.path.exists(argumanlar.karsilastir):
+            logger.error("Karsilastirma icin belirtilen onceki rapor bulunamadi: %s", argumanlar.karsilastir)
+            sys.exit(1)
+        if not os.path.exists(argumanlar.json_cikti):
+            logger.error("Karsilastirma icin yeni JSON raporu bulunamadi: %s", argumanlar.json_cikti)
+            logger.info("Once onceki rapor belirtildi. Once Tulpar'i calistirip yeni raporu olusturun, sonra karsilastirma yapin.")
+            sys.exit(1)
+        fark_raporu = rapor_karsilastir(argumanlar.karsilastir, argumanlar.json_cikti, argumanlar.karsilastirma_cikti)
+        if fark_raporu:
+            ozet = fark_raporu['ozet']
+            print(json.dumps({
+                "onceki_zafiyet_sayisi": ozet['onceki_zafiyet_sayisi'],
+                "yeni_zafiyet_sayisi": ozet['yeni_zafiyet_sayisi'],
+                "yeni_eklenen_zafiyet_sayisi": ozet['yeni_eklenen_zafiyet_sayisi'],
+                "kapanan_zafiyet_sayisi": ozet['kapanan_zafiyet_sayisi'],
+                "devam_eden_zafiyet_sayisi": ozet['devam_eden_zafiyet_sayisi'],
+                "yeni_eklenen_zafiyetler": [b.get('zafiyet_adi') for b in fark_raporu.get('yeni_eklenen_zafiyetler', [])],
+                "kapanan_zafiyetler": [b.get('zafiyet_adi') for b in fark_raporu.get('kapanan_zafiyetler', [])]
+            }, ensure_ascii=False, indent=2))
+            if fark_raporu['ozet']['yeni_eklenen_zafiyet_sayisi'] > 0:
+                yeni_kritik = any(
+                    b.get('kritiklik_seviyesi') == 'Kritik'
+                    for b in fark_raporu.get('yeni_eklenen_zafiyetler', [])
+                )
+                if yeni_kritik:
+                    sys.exit(1)
+        sys.exit(0)
 
     onbellek_kullaniliyor = False
     if argumanlar.onbellek:
@@ -66,26 +109,56 @@ def ana_fonksiyon():
         if argumanlar.aws_profil or konfig.get('aws-profil'):
             profil = argumanlar.aws_profil or konfig.get('aws-profil')
             logger.info("AWS profili kullaniliyor: %s", profil)
-            tarayici = GekSizmaScanner(profil_adi=profil)
+            tarayici = GekSizmaScanner(profil_adi=profil, thread_sayisi=argumanlar.thread_sayisi)
         elif argumanlar.erisim_anahtari and argumanlar.gizli_anahtar:
             logger.info("CLI argumanlarindan saglanan kimlik bilgileri kullaniliyor")
             tarayici = GekSizmaScanner(
                 erisim_anahtari=argumanlar.erisim_anahtari,
                 gizli_anahtar=argumanlar.gizli_anahtar,
-                oturum_belirteci=argumanlar.oturum_belirteci
+                oturum_belirteci=argumanlar.oturum_belirteci,
+                thread_sayisi=argumanlar.thread_sayisi
             )
         elif os.environ.get('AWS_ACCESS_KEY_ID') and os.environ.get('AWS_SECRET_ACCESS_KEY'):
             logger.info("Ortam degiskenlerinden alinan kimlik bilgileri kullaniliyor")
             tarayici = GekSizmaScanner(
                 erisim_anahtari=os.environ.get('AWS_ACCESS_KEY_ID'),
                 gizli_anahtar=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-                oturum_belirteci=os.environ.get('AWS_SESSION_TOKEN')
+                oturum_belirteci=os.environ.get('AWS_SESSION_TOKEN'),
+                thread_sayisi=argumanlar.thread_sayisi
             )
         else:
             logger.info("Varsayilan boto3 kimlik bilgisi zinciri kullaniliyor (~/.aws/credentials, EC2 instance profile, vb.)")
-            tarayici = GekSizmaScanner()
+            tarayici = GekSizmaScanner(thread_sayisi=argumanlar.thread_sayisi)
+
+        if argumanlar.sadece_kontrol:
+            logger.info("Baglanti testi yapiliyor...")
+            basarili = tarayici.kimlik_bilgilerini_getir()
+            if basarili:
+                kimlik = tarayici.kimlik_bilgileri
+                sonuc = {
+                    "durum": "basarili",
+                    "arn": kimlik.get('arn', ''),
+                    "hesap_id": kimlik.get('hesap_id', ''),
+                    "kullanici_id": kimlik.get('kullanici_id', '')
+                }
+                print(json.dumps(sonuc, ensure_ascii=False, indent=2))
+                logger.info("Baglanti testi basarili: %s", kimlik.get('arn', ''))
+                sys.exit(0)
+            else:
+                sonuc = {"durum": "basarisiz", "hata": "Kimlik bilgileri dogrulanamadi"}
+                print(json.dumps(sonuc, ensure_ascii=False, indent=2))
+                logger.error("Baglanti testi basarisiz")
+                sys.exit(1)
 
         analiz_motoru = ExploitationMappingEngine(tarayici)
+
+        if argumanlar.hizli:
+            vektor_verisi = vektorleri_yukle()
+            tum_vektorler = vektor_verisi.get('vektorler', [])
+            kritik_vektorler = sorted(tum_vektorler, key=lambda v: v.get('risk_skoru', 0), reverse=True)[:15]
+            analiz_motoru.vektorler = kritik_vektorler
+            logger.info("Hizli mod aktif: sadece en kritik %d vektor taranacak", len(kritik_vektorler))
+
         analiz_motoru.analiz_baslat()
 
         bulunan_zafiyetler = analiz_motoru.bulunan_zafiyetler
@@ -109,32 +182,56 @@ def ana_fonksiyon():
         scp_durumu = onbellek_verisi.get('scp_kisitlamasi_var')
         logger.info("Onbellekten %d zafiyet yuklendi", len(bulunan_zafiyetler))
 
-    rapor_yazici = ReportWriter(bulunan_zafiyetler, argumanlar.json_cikti)
-    rapor_yazici.rapor_yaz()
-
-    if saldiri_yollari:
-        grafik_olusturucu = AttackGraphGenerator(
-            saldiri_yollari,
-            bulunan_zafiyetler,
-            argumanlar.html_cikti,
-            cevrimdisi_mod=argumanlar.cevrimdisi
-        )
-        grafik_olusturucu.html_olustur()
+    if argumanlar.sessiz:
+        sessiz_meta = {
+            "tarama_tarihi": datetime.now().isoformat(),
+            "arac_surumu": SURUM,
+            "zafiyet_sayisi": len(bulunan_zafiyetler),
+            "scp_kisitlamasi_var": scp_durumu,
+            "kritik_zafiyet_sayisi": sum(1 for b in bulunan_zafiyetler if b.get('kritiklik_seviyesi') == 'Kritik'),
+            "yuksek_zafiyet_sayisi": sum(1 for b in bulunan_zafiyetler if b.get('kritiklik_seviyesi') == 'Yuksek'),
+            "zafiyetler": [b.get('zafiyet_adi') for b in bulunan_zafiyetler]
+        }
+        print(json.dumps(sessiz_meta, ensure_ascii=False, indent=2))
     else:
-        logger.warning("Gorsellestirilecek saldiri yolu bulunamadi, HTML raporu atlaniyor")
+        rapor_yazici = ReportWriter(bulunan_zafiyetler, argumanlar.json_cikti)
+        rapor_yazici.rapor_yaz()
 
-    if argumanlar.format != 'json' and argumanlar.format_cikti:
-        coklu_format = CokluFormatRaporlayici(bulunan_zafiyetler, scp_durumu)
-        coklu_format.formatli_rapor_yaz(argumanlar.format_cikti, argumanlar.format)
-    elif argumanlar.format != 'json' and not argumanlar.format_cikti:
-        varsayilan_cikti = argumanlar.json_cikti.replace('.json', '.' + argumanlar.format)
-        coklu_format = CokluFormatRaporlayici(bulunan_zafiyetler, scp_durumu)
-        coklu_format.formatli_rapor_yaz(varsayilan_cikti, argumanlar.format)
+        if saldiri_yollari:
+            grafik_olusturucu = AttackGraphGenerator(
+                saldiri_yollari,
+                bulunan_zafiyetler,
+                argumanlar.html_cikti,
+                cevrimdisi_mod=argumanlar.cevrimdisi
+            )
+            grafik_olusturucu.html_olustur()
+        else:
+            logger.warning("Gorsellestirilecek saldiri yolu bulunamadi, HTML raporu atlaniyor")
 
-    logger.info("Tarama tamamlandi. %d zafiyet bulundu. Raporlar olusturuldu: %s, %s",
-                len(bulunan_zafiyetler),
-                argumanlar.json_cikti,
-                argumanlar.html_cikti)
+        if argumanlar.format != 'json' and argumanlar.format_cikti:
+            coklu_format = CokluFormatRaporlayici(bulunan_zafiyetler, scp_durumu)
+            coklu_format.formatli_rapor_yaz(argumanlar.format_cikti, argumanlar.format)
+        elif argumanlar.format != 'json' and not argumanlar.format_cikti:
+            varsayilan_cikti = argumanlar.json_cikti.replace('.json', '.' + argumanlar.format)
+            if varsayilan_cikti == argumanlar.json_cikti:
+                varsayilan_cikti = argumanlar.json_cikti + '.' + argumanlar.format
+            coklu_format = CokluFormatRaporlayici(bulunan_zafiyetler, scp_durumu)
+            coklu_format.formatli_rapor_yaz(varsayilan_cikti, argumanlar.format)
+
+        if argumanlar.format == 'sarif' or argumanlar.sarif_cikti:
+            sarif_cikti_yolu = argumanlar.sarif_cikti or 'raporlar/tulpar_rapor.sarif'
+            sarif_raporu_yaz(bulunan_zafiyetler, sarif_cikti_yolu)
+
+        logger.info("Tarama tamamlandi. %d zafiyet bulundu. Raporlar olusturuldu: %s, %s",
+                    len(bulunan_zafiyetler),
+                    argumanlar.json_cikti,
+                    argumanlar.html_cikti)
+
+    kritik_var = any(b.get('kritiklik_seviyesi') == 'Kritik' for b in bulunan_zafiyetler)
+    if kritik_var:
+        sys.exit(1)
+    sys.exit(0)
+
 
 if __name__ == "__main__":
     ana_fonksiyon()
