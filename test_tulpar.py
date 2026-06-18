@@ -166,6 +166,17 @@ class TestExploitationMappingEngine(unittest.TestCase):
                 {'EvalActionName': 'secretsmanager:GetSecretValue', 'EvalDecision': 'implicitDeny'},
                 {'EvalActionName': 's3:GetObject', 'EvalDecision': 'implicitDeny'},
                 {'EvalActionName': 's3:PutObject', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:UpdateLoginProfile', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:AddUserToGroup', 'EvalDecision': 'allowed'},
+                {'EvalActionName': 'iam:SetDefaultPolicyVersion', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'lambda:UpdateFunctionCode', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'codebuild:CreateProject', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'codebuild:StartBuild', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'ssm:SendCommand', 'EvalDecision': 'allowed'},
+                {'EvalActionName': 'ssm:StartSession', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:PutRolePolicy', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'iam:AttachRolePolicy', 'EvalDecision': 'implicitDeny'},
+                {'EvalActionName': 'lambda:UpdateFunctionConfiguration', 'EvalDecision': 'implicitDeny'},
             ]
         }
         mock_ec2_global = MagicMock()
@@ -210,6 +221,29 @@ class TestExploitationMappingEngine(unittest.TestCase):
 
         zafiyet_adlari = [z['zafiyet_adi'] for z in self.motor.bulunan_zafiyetler]
         self.assertIn('Politika Surumu Manipulasyonu', zafiyet_adlari)
+        self.assertIn('Grup Yonetimi Manipulasyonu', zafiyet_adlari)
+        self.assertIn('SSM Komut Enjeksiyonu Ile Rol Calma', zafiyet_adlari)
+
+    @patch('boto3.Session')
+    def test_yeni_vektor_risk_skoru_ata(self, mock_session_sinifi):
+        from tulpar.analiz import ExploitationMappingEngine
+        from tulpar.tarayici import GekSizmaScanner
+
+        mock_oturum = MagicMock()
+        mock_session_sinifi.return_value = mock_oturum
+
+        tarayici = GekSizmaScanner(erisim_anahtari='AKIATESTTEST', gizli_anahtar='testtesttest')
+        tarayici.scp_kisitlamasi_var = False
+        motor = ExploitationMappingEngine(tarayici)
+
+        motor._bulgu_ekle({"zafiyet_adi": "CodeBuild Projesi Ile Rol Calma", "kritiklik_seviyesi": "Kritik"})
+        motor._bulgu_ekle({"zafiyet_adi": "Grup Yonetimi Manipulasyonu", "kritiklik_seviyesi": "Kritik"})
+        motor._bulgu_ekle({"zafiyet_adi": "Lambda Konfigurasyon Guncelleme", "kritiklik_seviyesi": "Yuksek"})
+
+        skorlar = {b['zafiyet_adi']: b['risk_skoru'] for b in motor.bulunan_zafiyetler}
+        self.assertEqual(skorlar.get('CodeBuild Projesi Ile Rol Calma'), 9.5)
+        self.assertEqual(skorlar.get('Grup Yonetimi Manipulasyonu'), 9.2)
+        self.assertEqual(skorlar.get('Lambda Konfigurasyon Guncelleme'), 8.5)
 
     @patch('boto3.Session')
     def test_bilinmeyen_durum_fallback(self, mock_session_sinifi):

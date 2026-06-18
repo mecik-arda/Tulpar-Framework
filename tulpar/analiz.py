@@ -64,11 +64,22 @@ class ExploitationMappingEngine:
             'sagemaker:CreatePresignedNotebookInstanceUrl',
             'iam:CreateAccessKey',
             'iam:CreateLoginProfile',
+            'iam:UpdateLoginProfile',
             'ec2:ModifyInstanceAttribute',
             'sts:AssumeRole',
             'secretsmanager:GetSecretValue',
             's3:GetObject',
-            's3:PutObject'
+            's3:PutObject',
+            'iam:AddUserToGroup',
+            'iam:SetDefaultPolicyVersion',
+            'lambda:UpdateFunctionCode',
+            'codebuild:CreateProject',
+            'codebuild:StartBuild',
+            'ssm:SendCommand',
+            'ssm:StartSession',
+            'iam:PutRolePolicy',
+            'iam:AttachRolePolicy',
+            'lambda:UpdateFunctionConfiguration'
         ]
 
         simulasyon_sonucu = self.tarayici.hak_simulasyonu_yap(kontrol_edilecek_eylemler)
@@ -92,6 +103,14 @@ class ExploitationMappingEngine:
         self._rol_zincirleme_kontrol_et(simulasyon_sonucu)
         self._secrets_manager_veri_sizdirma_kontrol_et(simulasyon_sonucu)
         self._s3_lambda_tetikleme_kontrol_et(simulasyon_sonucu)
+        self._konsol_sifresi_guncelleme_kontrol_et(simulasyon_sonucu)
+        self._grup_yonetimi_manipulasyonu_kontrol_et(simulasyon_sonucu)
+        self._eski_politika_surumune_donus_kontrol_et(simulasyon_sonucu)
+        self._lambda_kod_enjeksiyonu_kontrol_et(simulasyon_sonucu)
+        self._codebuild_rol_calma_kontrol_et(simulasyon_sonucu)
+        self._ssm_komut_enjeksiyonu_kontrol_et(simulasyon_sonucu)
+        self._rol_politikasi_manipulasyonu_kontrol_et(simulasyon_sonucu)
+        self._lambda_konfigurasyon_guncelleme_kontrol_et(simulasyon_sonucu)
 
     def _bilinmeyen_durum_ekle(self):
         self._bulgu_ekle({
@@ -332,3 +351,127 @@ class ExploitationMappingEngine:
             })
             adim = "S3_Lambda_Tetikleme"
             self.saldiri_yollari.append(("Baslangic", adim, "AdministratorAccess"))
+
+    def _konsol_sifresi_guncelleme_kontrol_et(self, simulasyon_sonucu):
+        update_login_profile_izni = simulasyon_sonucu.get('iam:UpdateLoginProfile') == 'allowed'
+
+        if update_login_profile_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Konsol Sifresi Guncelleme",
+                "kritiklik_seviyesi": "Yuksek",
+                "aciklama": "Saldirgan, yetkili bir hesabin AWS Yonetim Konsolu sifresini guncelleyerek veya sifirlayarak web arayuzunu ele gecirebilir ve o kullanicinin tum yetkileriyle islem yapabilir.",
+                "cloudtrail_izi": "UpdateLoginProfile",
+                "sikiastirma_onerisi": "iam:UpdateLoginProfile yetkisini hesap yoneticileri disindaki tum kullanicilardan kaldirin; sifre politikalarinizi MFA ile koruyun; sifre degisikliklerinde anlik bildirim kurun.",
+                "somuru_komutu": "aws iam update-login-profile --user-name HEDEF_YUKSEK_YETKILI_KULLANICI --password 'YeniKarmasikParola456!' --no-password-reset-required",
+                "mavi_takim_onerisi": "CloudTrail'de UpdateLoginProfile olaylarini anlik olarak izleyin; baska bir kullanici adina sifre guncellendiginde alarm tetikleyin ve otomatik olarak sifreyi sifirlayin; sifre yonetimi icin sadece self-service portallarini kullanin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "UpdateLoginProfile_Yukseltme", "AdministratorAccess"))
+
+    def _grup_yonetimi_manipulasyonu_kontrol_et(self, simulasyon_sonucu):
+        add_user_to_group_izni = simulasyon_sonucu.get('iam:AddUserToGroup') == 'allowed'
+
+        if add_user_to_group_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Grup Yonetimi Manipulasyonu",
+                "kritiklik_seviyesi": "Kritik",
+                "aciklama": "Saldirgan, kendisini yuksek yetkili bir IAM grubuna (ornegin AdministratorAccess politikasi atanmis Yoneticiler grubu) ekleyerek tum haklari miras alabilir ve yonetici yetkilerine ulasabilir.",
+                "cloudtrail_izi": "AddUserToGroup",
+                "sikiastirma_onerisi": "iam:AddUserToGroup yetkisini sadece yetkili hesap yoneticilerine kisitlayin; grup uyelik degisikliklerini duzgun araliklarla denetleyin; kritik gruplara uyelik ekleme islemini MFA ile koruyun.",
+                "somuru_komutu": "aws iam add-user-to-group --group-name Yoneticiler --user-name KENDI_KULLANICI_ADINIZ",
+                "mavi_takim_onerisi": "CloudTrail'de AddUserToGroup olaylarini gercek zamanli izleyin; yuksek yetkili gruplara yeni uye eklendiginde anlik alarm kurun; grup uyeliklerini otomatik olarak periyodik denetleyen ve raporlayan bir sistem kurun."
+            })
+            self.saldiri_yollari.append(("Baslangic", "AddUserToGroup_Yukseltme", "AdministratorAccess"))
+
+    def _eski_politika_surumune_donus_kontrol_et(self, simulasyon_sonucu):
+        set_default_policy_version_izni = simulasyon_sonucu.get('iam:SetDefaultPolicyVersion') == 'allowed'
+
+        if set_default_policy_version_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Eski Politika Surumune Donus",
+                "kritiklik_seviyesi": "Kritik",
+                "aciklama": "Saldirgan, bir politikanin gecmiste kalmis zafiyetli veya daha genis yetkili eski bir surumunu tekrar aktif hale getirerek yetkisini yukseltebilir. Ornegin AdministratorAccess hakki veren eski bir politika surumu yeniden etkinlestirilebilir.",
+                "cloudtrail_izi": "SetDefaultPolicyVersion",
+                "sikiastirma_onerisi": "iam:SetDefaultPolicyVersion yetkisini tum kullanicilardan kaldirin; politikalarda surum sayisini sinirlandirin; eski politika surumlerini duzgun araliklarla temizleyin; sadece en guncel politika surumunun aktif olmasini garanti altina alin.",
+                "somuru_komutu": "aws iam set-default-policy-version --policy-arn arn:aws:iam::HESAP_ID:policy/HEDEF_POLITIKA --version-id v1",
+                "mavi_takim_onerisi": "CloudTrail'de SetDefaultPolicyVersion olaylarini en yuksek oncelikle izleyin; varsayilan politika surumu degistiginde anlik alarm tetikleyin; politika surum gecmisine duzgun araliklarla goz atarak supheli geri donusleri tespit edin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "SetDefaultPolicyVersion_Yukseltme", "AdministratorAccess"))
+
+    def _lambda_kod_enjeksiyonu_kontrol_et(self, simulasyon_sonucu):
+        lambda_update_code_izni = simulasyon_sonucu.get('lambda:UpdateFunctionCode') == 'allowed'
+
+        if lambda_update_code_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Mevcut Lambda Koduna Enjeksiyon",
+                "kritiklik_seviyesi": "Yuksek",
+                "aciklama": "Saldirgan, PassRole yetkisi olmadan, hali hazirda yuksek yetkili bir IAM rolu ile calisan mevcut bir Lambda fonksiyonunun kodunu guncelleyerek bu rolun yetkileriyle kod calistirabilir ve yetkisini yukseltebilir.",
+                "cloudtrail_izi": "UpdateFunctionCode",
+                "sikiastirma_onerisi": "lambda:UpdateFunctionCode yetkisini sadece guvenilir roller ve belirli Lambda fonksiyonlari ile kisitlayin; Lambda kod imzalama (Code Signing) ozelligini zorunlu hale getirin; fonksiyon guncellemelerini CI/CD pipeline uzerinden MFA ile koruyun.",
+                "somuru_komutu": "aws lambda update-function-code --function-name YUKSEK_YETKILI_LAMBDA_ADI --zip-file fileb://kotu_amaci_kod.zip",
+                "mavi_takim_onerisi": "CloudTrail'de UpdateFunctionCode olaylarini anlik izleyin; beklenmeyen Lambda kodu guncellemelerinde fonksiyonu otomatik olarak onceki surume donduren duzeltici aksiyon tanimlayin; Lambda kod degisikliklerini kod inceleme surecinden gecirin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "Lambda_Kod_Enjeksiyonu", "AdministratorAccess"))
+
+    def _codebuild_rol_calma_kontrol_et(self, simulasyon_sonucu):
+        pass_role_izni = simulasyon_sonucu.get('iam:PassRole') == 'allowed'
+        codebuild_create_izni = simulasyon_sonucu.get('codebuild:CreateProject') == 'allowed'
+        codebuild_start_izni = simulasyon_sonucu.get('codebuild:StartBuild') == 'allowed'
+
+        if pass_role_izni and (codebuild_create_izni or codebuild_start_izni):
+            self._bulgu_ekle({
+                "zafiyet_adi": "CodeBuild Projesi Ile Rol Calma",
+                "kritiklik_seviyesi": "Kritik",
+                "aciklama": "Saldirgan, yuksek yetkili bir servis rolu ile AWS CodeBuild projesi olusturup baslatarak buildspec.yml uzerinden keyfi komut calistirabilir. Calistirilan kod, atanmis servis rolunun tum yetkilerine sahip olur.",
+                "cloudtrail_izi": "CreateProject, StartBuild",
+                "sikiastirma_onerisi": "codebuild:CreateProject ve iam:PassRole yetkilerini birbirinden ayirin; CodeBuild projelerinde kullanilabilecek servis rollerini kaynak tabanli politikalarla sinirlandirin; buildspec'in disaridan enjekte edilmesini engelleyin.",
+                "somuru_komutu": "aws codebuild create-project --name kotu-amacli-proje --service-role arn:aws:iam::HESAP_ID:role/YONETICI_ROLU --artifacts type=NO_ARTIFACTS --environment type=LINUX_CONTAINER,image=aws/codebuild/standard:7.0,computeType=BUILD_GENERAL1_SMALL --source type=NO_SOURCE,buildspec='version:0.2\\nphases:\\n  build:\\n    commands:\\n      - aws sts get-caller-identity'",
+                "mavi_takim_onerisi": "CloudTrail'de CreateProject ve StartBuild olaylarini birlikte izleyin; yeni CodeBuild projesi olusturulup hemen baslatildiginda alarm tetikleyin; CodeBuild proje olusturmayi sadece CI/CD pipeline rollerine kisitlayin; tum build loglarini CloudWatch'a aktarip izleyin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "CodeBuild_RolCalma", "AdministratorAccess"))
+
+    def _ssm_komut_enjeksiyonu_kontrol_et(self, simulasyon_sonucu):
+        ssm_send_command_izni = simulasyon_sonucu.get('ssm:SendCommand') == 'allowed'
+        ssm_start_session_izni = simulasyon_sonucu.get('ssm:StartSession') == 'allowed'
+
+        if ssm_send_command_izni or ssm_start_session_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "SSM Komut Enjeksiyonu Ile Rol Calma",
+                "kritiklik_seviyesi": "Yuksek",
+                "aciklama": "Saldirgan, AWS Systems Manager (SSM) uzerinden canli bir EC2 bulutusuna dogrudan komut gondererek veya etkilesimli oturum baslatarak bulutunun metadata servisindeki IAM rol kimlik bilgilerini calabilir ve yetkisini yukseltebilir.",
+                "cloudtrail_izi": "SendCommand, StartSession",
+                "sikiastirma_onerisi": "ssm:SendCommand ve ssm:StartSession yetkilerini sadece gerekli bulutular ve roller ile kisitlayin; SSM oturum kayitlarini (Session Manager logs) S3 veya CloudWatch Logs'a aktararak denetleyin; EC2 bulutularinda IMDSv2'yi zorunlu kilin.",
+                "somuru_komutu": "aws ssm send-command --document-name AWS-RunShellScript --targets Key=instanceids,Values=i-HEDEF_BULUTU_KIMLIGI --parameters commands='TOKEN=$(curl -X PUT -H \\\"X-aws-ec2-metadata-token-ttl-seconds:21600\\\" http://169.254.169.254/latest/api/token) && curl -H \\\"X-aws-ec2-metadata-token:$TOKEN\\\" http://169.254.169.254/latest/meta-data/iam/security-credentials/'",
+                "mavi_takim_onerisi": "CloudTrail'de SendCommand ve StartSession olaylarini anlik izleyin; metadata servisine erisim girisimlerini tespit eden SSM belge icerigi taramasi yapin; SSM komut gecmisi ve oturum kayitlarini SIEM sistemine entegre ederek anomali tespiti yapin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "SSM_Komut_Enjeksiyonu", "AdministratorAccess"))
+
+    def _rol_politikasi_manipulasyonu_kontrol_et(self, simulasyon_sonucu):
+        put_role_policy_izni = simulasyon_sonucu.get('iam:PutRolePolicy') == 'allowed'
+        attach_role_policy_izni = simulasyon_sonucu.get('iam:AttachRolePolicy') == 'allowed'
+
+        if put_role_policy_izni or attach_role_policy_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Rol Politikasi Manipulasyonu",
+                "kritiklik_seviyesi": "Kritik",
+                "aciklama": "Saldirgan, assume edebildigi herhangi bir role veya hesapta var olan rollere yuksek yetkili politikalar ekleyerek (ornegin AdministratorAccess) bu roller uzerinden yetki yukseltebilir. Bu vektor ozellikle gelistirme/test rollerine yonelik saldirilarda etkilidir.",
+                "cloudtrail_izi": "PutRolePolicy, AttachRolePolicy",
+                "sikiastirma_onerisi": "iam:PutRolePolicy ve iam:AttachRolePolicy yetkilerini sadece hesap yoneticilerine kisitlayin; rol politikalarinin degistirilmesini MFA ile koruyun; roller uzerindeki inline ve managed politikalari duzgun araliklarla denetleyin.",
+                "somuru_komutu": "aws iam put-role-policy --role-name HEDEF_ROL_ADI --policy-name SIZMA_POLITIKASI --policy-document '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}'",
+                "mavi_takim_onerisi": "CloudTrail'de PutRolePolicy ve AttachRolePolicy olaylarini en yuksek oncelikle izleyin; rollere yeni inline politika eklenmesi veya yuksek yetkili managed politika baglanmasi durumunda anlik alarm ve otomatik politika kaldirma tetikleyin."
+            })
+            self.saldiri_yollari.append(("Baslangic", "Rol_Politikasi_Manipulasyonu", "AdministratorAccess"))
+
+    def _lambda_konfigurasyon_guncelleme_kontrol_et(self, simulasyon_sonucu):
+        lambda_update_config_izni = simulasyon_sonucu.get('lambda:UpdateFunctionConfiguration') == 'allowed'
+
+        if lambda_update_config_izni:
+            self._bulgu_ekle({
+                "zafiyet_adi": "Lambda Konfigurasyon Guncelleme",
+                "kritiklik_seviyesi": "Yuksek",
+                "aciklama": "Saldirgan, mevcut bir Lambda fonksiyonunun ortam degiskenlerini (environment variables), calisma suresini veya en kritigi calistigi IAM rolunu degistirerek yetkisini yukseltebilir. Yeni bir yuksek yetkili rol atanarak fonksiyon uzerinden admin islemleri yapilabilir.",
+                "cloudtrail_izi": "UpdateFunctionConfiguration",
+                "sikiastirma_onerisi": "lambda:UpdateFunctionConfiguration yetkisini sadece gerekli Lambda fonksiyonlari ve guvenilir roller ile kisitlayin; fonksiyon yapilandirma degisikliklerini (ozellikle rol degisikliklerini) MFA ile koruyun; ortam degiskenlerinde hassas bilgi saklamamaya ozen gosterin.",
+                "somuru_komutu": "aws lambda update-function-configuration --function-name YUKSEK_YETKILI_LAMBDA --role arn:aws:iam::HESAP_ID:role/DAHA_YUKSEK_YETKILI_ROL",
+                "mavi_takim_onerisi": "CloudTrail'de UpdateFunctionConfiguration olaylarini izleyin; Lambda rol degisikligi (--role parametresi ile yapilan) durumunda anlik alarm tetikleyin; her Lambda'nin hangi rol ile calistigini periyodik olarak denetleyip raporlayan bir sistem kurun."
+            })
+            self.saldiri_yollari.append(("Baslangic", "Lambda_Konfigurasyon_Guncelleme", "AdministratorAccess"))

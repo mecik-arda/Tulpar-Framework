@@ -21,11 +21,22 @@ KONTROL_EDILECEK_EYLEMLER = [
     'sagemaker:CreatePresignedNotebookInstanceUrl',
     'iam:CreateAccessKey',
     'iam:CreateLoginProfile',
+    'iam:UpdateLoginProfile',
     'ec2:ModifyInstanceAttribute',
     'sts:AssumeRole',
     'secretsmanager:GetSecretValue',
     's3:GetObject',
-    's3:PutObject'
+    's3:PutObject',
+    'iam:AddUserToGroup',
+    'iam:SetDefaultPolicyVersion',
+    'lambda:UpdateFunctionCode',
+    'codebuild:CreateProject',
+    'codebuild:StartBuild',
+    'ssm:SendCommand',
+    'ssm:StartSession',
+    'iam:PutRolePolicy',
+    'iam:AttachRolePolicy',
+    'lambda:UpdateFunctionConfiguration'
 ]
 
 CDN_BOOTSTRAP_URL = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css'
@@ -54,6 +65,14 @@ DUGUM_ZAFIYET_ESLEME_TABLOSU = [
     ("AssumeRole_Zincirleme", "Zincirleme Rol Ustlenme Yoluyla Yetki Yukseltme"),
     ("SecretsManager_VeriSizdirma", "Secrets Manager Uzerinden Hassas Kimlik Bilgisi Okuma"),
     ("S3_Lambda_Tetikleme", "S3 Bucket Uzerinden Kod Calistirma ve Yetki Yukseltme"),
+    ("UpdateLoginProfile_Yukseltme", "Konsol Sifresi Guncelleme"),
+    ("AddUserToGroup_Yukseltme", "Grup Yonetimi Manipulasyonu"),
+    ("SetDefaultPolicyVersion_Yukseltme", "Eski Politika Surumune Donus"),
+    ("Lambda_Kod_Enjeksiyonu", "Mevcut Lambda Koduna Enjeksiyon"),
+    ("CodeBuild_RolCalma", "CodeBuild Projesi Ile Rol Calma"),
+    ("SSM_Komut_Enjeksiyonu", "SSM Komut Enjeksiyonu Ile Rol Calma"),
+    ("Rol_Politikasi_Manipulasyonu", "Rol Politikasi Manipulasyonu"),
+    ("Lambda_Konfigurasyon_Guncelleme", "Lambda Konfigurasyon Guncelleme"),
 ]
 
 RISK_SKORU_TABLOSU = {
@@ -73,6 +92,14 @@ RISK_SKORU_TABLOSU = {
     "Secrets Manager Uzerinden Hassas Kimlik Bilgisi Okuma": 7.0,
     "S3 Bucket Uzerinden Kod Calistirma ve Yetki Yukseltme": 6.5,
     "Bilinmeyen Yetki Durumu": 5.0,
+    "Konsol Sifresi Guncelleme": 8.5,
+    "Grup Yonetimi Manipulasyonu": 9.2,
+    "Eski Politika Surumune Donus": 8.8,
+    "Mevcut Lambda Koduna Enjeksiyon": 8.0,
+    "CodeBuild Projesi Ile Rol Calma": 9.5,
+    "SSM Komut Enjeksiyonu Ile Rol Calma": 8.5,
+    "Rol Politikasi Manipulasyonu": 9.3,
+    "Lambda Konfigurasyon Guncelleme": 8.5,
 }
 
 CIKTI_FORMATLARI = ['json', 'html', 'csv', 'markdown']
