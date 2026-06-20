@@ -5,11 +5,15 @@
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY . .
+RUN pip install --upgrade pip wheel setuptools && \
+    pip wheel --no-cache-dir --wheel-dir /app/wheels .
 
 # --- Runtime Stage ---
 FROM python:3.11-slim
+
+# OS zafiyetlerini (perl, sqlite3, ncurses vb.) gidermek icin guncelleme
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 LABEL org.opencontainers.image.title="Tulpar Scanner"
 LABEL org.opencontainers.image.description="Kurumsal Cloud IAM Yetki Yukseltme Tarayicisi"
@@ -21,12 +25,15 @@ RUN useradd --create-home --shell /bin/bash tulpar && \
     mkdir -p /app/raporlar && \
     chown -R tulpar:tulpar /app
 
-COPY --from=builder /root/.local /home/tulpar/.local
+COPY --from=builder /app/wheels /wheels
+RUN pip install --upgrade pip wheel setuptools && \
+    pip install --no-cache-dir /wheels/* && \
+    rm -rf /wheels
+
 COPY . /app/
 
 WORKDIR /app
-RUN pip install --no-cache-dir -e . && \
-    chown -R tulpar:tulpar /app
+RUN chown -R tulpar:tulpar /app
 
 USER tulpar
 ENV PATH="/home/tulpar/.local/bin:${PATH}"
