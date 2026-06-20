@@ -437,7 +437,7 @@ def sarif_raporu_yaz(bulgular, cikti_dosyasi, arac_adi="Tulpar"):
             konum = {
                 "physicalLocation": {
                     "artifactLocation": {
-                        "uri": "iam:{}".format(bulgu.get("cloudtrail_izi", "bilinmeyen").split(",")[0].strip())
+                        "uri": "tulpar_rapor.json"
                     },
                     "region": {"startLine": 1, "startColumn": 1},
                 }
