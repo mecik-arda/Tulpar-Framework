@@ -25,6 +25,7 @@ on:
       - 'test_tulpar.py'
       - 'requirements.txt'
       - 'pyproject.toml'
+      - '.github/workflows/**'
 
 jobs:
   test:
