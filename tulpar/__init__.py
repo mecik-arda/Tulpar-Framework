@@ -18,3 +18,4 @@ from tulpar.rapor import AttackGraphGenerator, ReportWriter
 from tulpar.k8s_tarayici import K8sRBACTarayici
 from tulpar.ai_analiz import ai_yonetici_ozeti_uret
 from tulpar.web_dashboard import web_dashboard_baslat
+
