@@ -137,7 +137,7 @@ jobs:
           echo "## Tulpar Tarama Sonucu" >> $GITHUB_STEP_SUMMARY
           ZAFIYET_SAYISI=$(python -c "import json; d=json.load(open('tulpar_rapor.json','r',encoding='utf-8')); print(d['zafiyet_sayisi'])")
           echo "**Tespit Edilen Zafiyet:** $ZAFIYET_SAYISI" >> $GITHUB_STEP_SUMMARY
-          python -c "
+          cat << 'EOF' > summary.py
           import json
           d = json.load(open('tulpar_rapor.json', 'r', encoding='utf-8'))
           for b in d['bulgular']:
@@ -145,4 +145,5 @@ jobs:
               risk = b.get('risk_skoru', '-')
               ad = b.get('zafiyet_adi', '')
               print(f'- **{ad}** | {kritik} | Risk: {risk}/10')
-          " >> $GITHUB_STEP_SUMMARY
+          EOF
+          python -c "$(cat summary.py | sed 's/^[ \t]*//')" >> $GITHUB_STEP_SUMMARY
