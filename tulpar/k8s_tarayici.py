@@ -189,31 +189,45 @@ class K8sRBACTarayici:
             try:
                 sunucu_versiyonu = client.VersionApi().get_code()
                 self.kume_bilgisi["kube_versiyonu"] = sunucu_versiyonu.git_version
-            except Exception:
+            except Exception as hata:
+                logger.debug("K8s surum bilgisi alinamadi: %s", hata)
                 self.kume_bilgisi["kube_versiyonu"] = "bilinmiyor"
 
             try:
                 namespaceler = v1.list_namespace()
                 self.kume_bilgisi["namespace_sayisi"] = len(namespaceler.items)
-            except Exception:
+            except Exception as hata:
+                logger.debug("Namespace listeleme hatasi: %s", hata)
                 self.kume_bilgisi["namespace_sayisi"] = "bilinmiyor"
 
             try:
-                podlar = v1.list_pod_for_all_namespaces()
-                self.kume_bilgisi["pod_sayisi"] = len(podlar.items)
-            except Exception:
+                pod_sayisi = 0
+                _continue = None
+                while True:
+                    podlar = v1.list_pod_for_all_namespaces(
+                        limit=500, _continue=_continue
+                    )
+                    pod_sayisi += len(podlar.items)
+                    _continue = podlar.metadata._continue if podlar.metadata else None
+                    if not _continue:
+                        break
+                self.kume_bilgisi["pod_sayisi"] = pod_sayisi
+            except Exception as hata:
+                logger.debug("Pod listeleme hatasi: %s", hata)
                 self.kume_bilgisi["pod_sayisi"] = "bilinmiyor"
 
             try:
                 cluster_roles = rbac_v1.list_cluster_role_binding()
                 self.kume_bilgisi["cluster_role_binding_sayisi"] = len(cluster_roles.items)
-            except Exception:
+            except Exception as hata:
+                logger.debug("ClusterRoleBinding listeleme hatasi: %s", hata)
                 self.kume_bilgisi["cluster_role_binding_sayisi"] = "bilinmiyor"
 
             try:
                 deployments = apps_v1.list_deployment_for_all_namespaces()
                 self.kume_bilgisi["deployment_sayisi"] = len(deployments.items)
-            except Exception:
+            except Exception as hata:
+                logger.debug("Deployment listeleme hatasi: %s", hata)
                 self.kume_bilgisi["deployment_sayisi"] = "bilinmiyor"
 
             logger.info(

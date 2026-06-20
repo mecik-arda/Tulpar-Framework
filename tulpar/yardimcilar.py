@@ -173,6 +173,14 @@ def ai_yonetici_ozeti_uret(bulunan_zafiyetler, provider="openai", api_key=None, 
 
 
 def sri_hash_hesapla(dosya_yolu):
+    """Dosyanin SRI (Subresource Integrity) sha384 hash'ini hesaplar.
+
+    Args:
+        dosya_yolu: Hash'i hesaplanacak dosyanin tam yolu.
+
+    Returns:
+        'sha384-BASE64HASH' formatinda SRI hash metni.
+    """
     sha384_hash = hashlib.sha384()
     with open(dosya_yolu, "rb") as dosya:
         for blok in iter(lambda: dosya.read(65536), b""):
@@ -368,6 +376,14 @@ def konfigurasyon_yukle(konfig_dosyasi):
 
 
 def servis_adi_ayristir(iam_eylemi):
+    """IAM eylem adini servis ve eylem bilesenlerine ayirir.
+
+    Args:
+        iam_eylemi: 'servis:EylemAdi' formatinda IAM eylem adi.
+
+    Returns:
+        (servis, eylem) ikilisi. Iki nokta yoksa her ikisi de ayni deger.
+    """
     if ":" not in iam_eylemi:
         return iam_eylemi, iam_eylemi
     servis, eylem = iam_eylemi.split(":", 1)
@@ -375,6 +391,14 @@ def servis_adi_ayristir(iam_eylemi):
 
 
 def servis_eylem_listesini_grupla(eylem_listesi):
+    """IAM eylem listesini servis adina gore gruplandirir.
+
+    Args:
+        eylem_listesi: 'servis:eylem' formatinda eylem adlarindan olusan liste.
+
+    Returns:
+        {servis_adi: [eylem1, eylem2, ...]} seklinde sozluk.
+    """
     gruplar = {}
     for eylem in eylem_listesi:
         servis, _ = servis_adi_ayristir(eylem)

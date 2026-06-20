@@ -38,6 +38,10 @@ def slack_bildirimi_gonder(webhook_url, mesaj):
     """Slack kanalina bildirim gonderir."""
     import urllib.request
 
+    if not webhook_url.startswith("https://hooks.slack.com/"):
+        logger.error("Guvenlik: Gecersiz Slack webhook URL'i. Yalnizca https://hooks.slack.com/ kabul edilir.")
+        return False
+
     try:
         veri = json.dumps({"text": mesaj}).encode("utf-8")
         istek = urllib.request.Request(

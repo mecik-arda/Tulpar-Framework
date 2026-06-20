@@ -162,7 +162,9 @@ def web_dashboard_baslat(argumanlar):
                             st.markdown(f"**CloudTrail İzi:** `{zafiyet.get('cloudtrail_izi', '-')}`")
                             st.markdown(f"**Sıkılaştırma Önerisi:** {zafiyet.get('sikiastirma_onerisi', '-')}")
                         with col_b:
-                            st.markdown(f'<span class="{badge_class}">{kritiklik}</span>', unsafe_allow_html=True)
+                            from tulpar.yardimcilar import htmlKacis
+                            guvenli_kritiklik = htmlKacis(kritiklik)
+                            st.markdown(f'<span class="{badge_class}">{guvenli_kritiklik}</span>', unsafe_allow_html=True)
                             st.metric("Risk Skoru", f"{risk}/10")
 
                         if zafiyet.get("somuru_komutu"):
@@ -187,13 +189,22 @@ def web_dashboard_baslat(argumanlar):
 
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
                     duzeltme_scripti_uret(bulunan, tmp.name)
-                    with open(tmp.name, "r", encoding="utf-8") as f:
-                        st.download_button(
-                            "📥 Düzeltme Scriptini İndir",
-                            f.read(),
-                            "tulpar_remediation.md",
-                            "text/markdown",
-                        )
+
+                with open(tmp.name, "r", encoding="utf-8") as f:
+                    script_icerik = f.read()
+
+                import os
+                try:
+                    os.unlink(tmp.name)
+                except OSError:
+                    pass
+
+                st.download_button(
+                    "📥 Düzeltme Scriptini İndir",
+                    script_icerik,
+                    "tulpar_remediation.md",
+                    "text/markdown",
+                )
 
     else:
         st.info("👈 Soldaki panelden ayarları yapıp **Taramayı Başlat** butonuna tıklayın.")
@@ -203,3 +214,7 @@ def web_dashboard_baslat(argumanlar):
     st.sidebar.markdown("[GitHub](https://github.com/mecik-arda/Tulpar-Framework)")
     st.sidebar.markdown("[PyPI](https://pypi.org/project/tulpar-scanner/)")
     st.sidebar.caption("© Tulpar Framework — MIT License")
+
+
+if __name__ == "__main__":
+    web_dashboard_baslat(None)

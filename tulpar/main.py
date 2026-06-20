@@ -261,9 +261,15 @@ def ana_fonksiyon():
         return
 
     if argumanlar.web:
-        from tulpar.web_dashboard import web_dashboard_baslat
+        import subprocess
 
-        web_dashboard_baslat(argumanlar)
+        dashboard_path = os.path.join(os.path.dirname(__file__), "web_dashboard.py")
+        logger.info("Web dashboard baslatiliyor (Streamlit)...")
+        print("🚀 Web arayüzü başlatılıyor...")
+        try:
+            subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_path])
+        except KeyboardInterrupt:
+            pass
         return
 
     if argumanlar.k8s_tarama:
