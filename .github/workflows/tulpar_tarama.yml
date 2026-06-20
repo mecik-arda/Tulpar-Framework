@@ -91,11 +91,10 @@ jobs:
           aws-region: us-east-1
 
       - name: Tulpar taramasini calistir
-        env:
-          AWS_PROFILE: ${{ github.event.inputs.aws_profil }}
         run: |
-          if [ -n "$AWS_PROFILE" ]; then
-            python -m tulpar --aws-profil "$AWS_PROFILE" --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md --sarif-cikti tulpar_rapor.sarif
+          PROFILE="${{ github.event.inputs.aws_profil }}"
+          if [ -n "$PROFILE" ]; then
+            python -m tulpar --aws-profil "$PROFILE" --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md --sarif-cikti tulpar_rapor.sarif
           else
             python -m tulpar --json-cikti tulpar_rapor.json --html-cikti tulpar_grafik.html --onbellek tulpar_onbellek.json --format markdown --format-cikti tulpar_rapor.md --sarif-cikti tulpar_rapor.sarif
           fi
