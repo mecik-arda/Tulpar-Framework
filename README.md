@@ -533,20 +533,23 @@ test_tulpar.py               51 birim testi (unittest.mock)
 - `[["izin:A", "izin:B"]]` → `izin:A` VE `izin:B` allowed ise tetiklenir
 - `[["izin:A"], ["izin:B"]]` → `izin:A` VEYA `izin:B` allowed ise tetiklenir
 
-## GitHub Actions CI/CD
+## 🔒 5 Aşamalı DevSecOps Pipeline (GitHub Actions)
 
-Depoda `.github/workflows/tulpar_tarama.yml` dosyası mevcuttur. İki job'lu pipeline:
+Depoda her kod değişikliğinde (push/PR) otomatik tetiklenen, **5 aşamalı ve sıfır-güven (zero-trust)** prensibine dayalı tam teşekküllü bir DevSecOps kontrol hattı bulunur (`.github/workflows/`):
 
-1. **`test`** — Her `push` ve PR'de pytest çalıştırır. `actions/cache@v4` ile pip önbelleği kullanır
-2. **`tulpar_tarama`** — Testler geçince çalışır. Gece 03:07 UTC'de otomatik tarama yapar. SARIF sonuçlarını GitHub Security sekmesine yükler
+1. 🧪 **Kod Kalitesi ve Birim Testleri:** `pytest` ile tüm fonksiyonlar test edilir, `flake8` ve `bandit` ile statik kod & güvenlik analizi yapılır.
+2. 🐳 **Docker İmaj Tarama:** Güncel kod ile oluşturulan konteyner imajı `trivy` kullanılarak CVE zafiyetlerine karşı taranır.
+3. ☁️ **OIDC Kimlik Doğrulama:** Uzun ömürlü ve statik AWS anahtarları kullanmak yerine, GitHub Actions OIDC (OpenID Connect) ile geçici, güvenli ve daraltılmış ayrıcalıklara sahip bir IAM rolüne bürünür (AssumeRole).
+4. 🚀 **AWS IAM Yetki Yükseltme Taraması:** Tulpar, AWS ortamındaki güncel IAM politikalarını analiz eder ve olası ayrıcalık yükseltme (privilege escalation) risklerini tespit eder. Gece 03:07 UTC'de otomatik zamanlanmış tarama da yapılır.
+5. 📊 **GitHub Advanced Security (SARIF):** Bulunan güvenlik açıkları ve zafiyet raporları SARIF formatında GitHub Security sekmesine (Code Scanning Alerts) ve Artifacts alanına otomatik olarak yüklenir.
 
-Kullanmak için:
+**Kurulum & Kullanım:**
 
-1. GitHub Secrets'a `AWS_TULPAR_TARAMA_ROLU_ARN` ekleyin (OIDC trust ilişkili IAM rolü)
-2. AWS hesabınızda GitHub Actions'ın assume-role yapabilmesi için OIDC provider yapılandırın
-3. Workflow otomatik olarak çalışacak ve sonuçları Artifacts olarak saklayacaktır
+1. GitHub Secrets'a OIDC trust ilişkili IAM rolünüzün ARN değerini `AWS_TULPAR_TARAMA_ROLU_ARN` olarak ekleyin.
+2. AWS hesabınızda GitHub Actions'ın `sts:AssumeRoleWithWebIdentity` yapabilmesi için [OIDC provider yapılandırın](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services).
+3. Sonrasında yapacağınız her push işleminde, 5 güvenlik kapısından geçen temiz bir CI/CD süreci deneyimleyeceksiniz!
 
-Manuel tetikleme: GitHub Actions sekmesinden → "Tulpar AWS IAM Guvenlik Taramasi" → "Run workflow"
+Manuel tetikleme: GitHub Actions sekmesinden → "Tulpar AWS IAM Guvenlik Taramasi" veya "Tulpar DevSecOps Guvenlik Kapisi" → "Run workflow"
 
 ## AWS Lambda Olarak Çalıştırma
 
