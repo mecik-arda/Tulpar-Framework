@@ -261,13 +261,13 @@ def ana_fonksiyon():
         return
 
     if argumanlar.web:
-        import subprocess
+        import subprocess  # nosec B404
 
         dashboard_path = os.path.join(os.path.dirname(__file__), "web_dashboard.py")
         logger.info("Web dashboard baslatiliyor (Streamlit)...")
         print("🚀 Web arayüzü başlatılıyor...")
         try:
-            subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_path])
+            subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_path])  # nosec B603
         except KeyboardInterrupt:
             pass
         return
