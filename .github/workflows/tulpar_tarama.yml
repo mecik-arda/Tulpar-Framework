@@ -24,6 +24,7 @@ on:
       - 'tulpar/**'
       - 'test_tulpar.py'
       - 'requirements.txt'
+      - 'pyproject.toml'
 
 jobs:
   test:
