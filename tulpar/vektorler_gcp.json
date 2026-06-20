@@ -1,0 +1,124 @@
+{
+  "bulut_saglayici": "gcp",
+  "aciklama": "Tulpar GCP IAM Yetki Yukseltme Vektor Tanimlari",
+  "vektorler": [
+    {
+      "vektor_adi": "GCP_ServiceAccountKeyCreate",
+      "turkce_baslik": "Servis Hesabi Anahtari Olusturma",
+      "gerekli_izinler": [["iam.serviceAccounts.createKey"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.5,
+      "aciklama": "Saldirgan, mevcut servis hesabina yeni bir anahtar olusturarak bu hesapla yetki yukseltebilir.",
+      "iyilestirme": "iam.serviceAccounts.createKey yetkisini kaldirin veya sadece belirli servis hesaplarina kisitlayin.",
+      "cloudtrail_izi": "google.iam.admin.v1.CreateServiceAccountKey",
+      "somuru_komutu": "gcloud iam service-accounts keys create KEY_FILE --iam-account HEDEF_SA@PROJE.iam.gserviceaccount.com",
+      "mavi_takim_onerisi": "Cloud Audit Logs'ta ServiceAccountKeyCreate olaylarini izleyin; beklenmeyen anahtar olusturmalari icin alarm kurun.",
+      "saldiri_grafi_dugumu": "GCP_ServiceAccountKeyCreate",
+      "saldiri_grafi_hedefi": "OrganizationAdmin"
+    },
+    {
+      "vektor_adi": "GCP_ServiceAccountImpersonation",
+      "turkce_baslik": "Servis Hesabi Kimligine Burunme",
+      "gerekli_izinler": [["iam.serviceAccounts.actAs"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.8,
+      "aciklama": "Saldirgan, yuksek yetkili bir servis hesabina burunerek yetkilerini calabilir.",
+      "iyilestirme": "iam.serviceAccounts.actAs yetkisini sadece guvenilir kullanicilara verin ve kosullu erisim uygulayin.",
+      "cloudtrail_izi": "google.iam.credentials.v1.GenerateAccessToken",
+      "somuru_komutu": "gcloud auth activate-service-account --key-file=ELE_GECIRILEN_ANAHTAR.json",
+      "mavi_takim_onerisi": "Service Account actAs izinlerini duzenli olarak denetleyin; beklenmedik token olusturmalarini izleyin.",
+      "saldiri_grafi_dugumu": "GCP_ServiceAccountImpersonation",
+      "saldiri_grafi_hedefi": "OrganizationAdmin"
+    },
+    {
+      "vektor_adi": "GCP_RoleBindingCreate",
+      "turkce_baslik": "Rol Baglamasi Olusturma",
+      "gerekli_izinler": [["resourcemanager.projects.setIamPolicy"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.7,
+      "aciklama": "Saldirgan, proje seviyesinde IAM politikasini degistirerek kendine admin yetkileri atayabilir.",
+      "iyilestirme": "resourcemanager.projects.setIamPolicy yetkisini sadece guvenilir yoneticilere verin.",
+      "cloudtrail_izi": "SetIamPolicy",
+      "somuru_komutu": "gcloud projects add-iam-policy-binding HEDEF_PROJE --member user:HEDEF_KULLANICI --role roles/owner",
+      "mavi_takim_onerisi": "Audit Logs'ta SetIamPolicy olaylarini gercek zamanli izleyin; beklenmedik politika degisikliklerinde otomatik geri alma tanimlayin.",
+      "saldiri_grafi_dugumu": "GCP_RoleBindingCreate",
+      "saldiri_grafi_hedefi": "OrganizationAdmin"
+    },
+    {
+      "vektor_adi": "GCP_CloudFunctionDeploy",
+      "turkce_baslik": "Cloud Function Uzerinden Yetki Calma",
+      "gerekli_izinler": [["cloudfunctions.functions.create", "iam.serviceAccounts.actAs"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.3,
+      "aciklama": "Saldirgan, yuksek yetkili servis hesabi ile Cloud Function olusturup kodu calistirabilir.",
+      "iyilestirme": "Cloud Function olusturma yetkisini guvenilir gelistiricilere kisitlayin.",
+      "cloudtrail_izi": "google.cloud.functions.v1.CreateFunction",
+      "somuru_komutu": "gcloud functions deploy saldiri-fonksiyonu --runtime python39 --trigger-http --service-account HEDEF_SA@PROJE.iam.gserviceaccount.com",
+      "mavi_takim_onerisi": "Cloud Function olusturma olaylarini izleyin; beklenmedik fonksiyon olusturmalarini engelleyin.",
+      "saldiri_grafi_dugumu": "GCP_CloudFunctionDeploy",
+      "saldiri_grafi_hedefi": "OrganizationAdmin"
+    },
+    {
+      "vektor_adi": "GCP_GCSBucketPolicyChange",
+      "turkce_baslik": "GCS Kova Politikasi Manipulasyonu",
+      "gerekli_izinler": [["storage.buckets.setIamPolicy"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 8.5,
+      "aciklama": "Saldirgan, GCS kova politikalarini degistirerek verilere erisim saglayabilir.",
+      "iyilestirme": "storage.buckets.setIamPolicy yetkisini kaldirin veya kosullu erisimle kisitlayin.",
+      "cloudtrail_izi": "storage.buckets.setIamPolicy",
+      "somuru_komutu": "gsutil iam ch user:HEDEF_KULLANICI:objectViewer gs://HEDEF_KOVA",
+      "mavi_takim_onerisi": "GCS kova politikasi degisikliklerini Cloud Audit Logs'ta izleyin.",
+      "saldiri_grafi_dugumu": "GCP_GCSBucketPolicyChange",
+      "saldiri_grafi_hedefi": "DataExfiltration"
+    },
+    {
+      "vektor_adi": "GCP_ComputeInstanceCreate",
+      "turkce_baslik": "Compute Engine ile Servis Hesabi Calma",
+      "gerekli_izinler": [["compute.instances.create", "iam.serviceAccounts.actAs"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.4,
+      "aciklama": "Saldirgan, yuksek yetkili servis hesabi ile VM olusturup metadata'dan kimlik bilgilerini calabilir.",
+      "iyilestirme": "Compute Instance olusturma yetkisini guvenilir rollerle kisitlayin.",
+      "cloudtrail_izi": "compute.instances.insert",
+      "somuru_komutu": "gcloud compute instances create saldiri-vm --service-account HEDEF_SA@PROJE.iam.gserviceaccount.com --metadata-startup-script='curl http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/'",
+      "mavi_takim_onerisi": "VM olusturma ve servis hesabi kullanimini izleyin; VPC Service Controls uygulayin.",
+      "saldiri_grafi_dugumu": "GCP_ComputeInstanceCreate",
+      "saldiri_grafi_hedefi": "OrganizationAdmin"
+    },
+    {
+      "vektor_adi": "GCP_PubSubTopicCreate",
+      "turkce_baslik": "Pub/Sub Konusu Uzerinden Kod Calistirma",
+      "gerekli_izinler": [["pubsub.topics.publish"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 7.5,
+      "aciklama": "Saldirgan, Cloud Function veya Dataflow tetikleyen Pub/Sub konusuna mesaj yayinlayabilir.",
+      "iyilestirme": "pubsub.topics.publish yetkisini sadece gerekli servis hesaplarina verin.",
+      "cloudtrail_izi": "google.pubsub.v1.Publish",
+      "somuru_komutu": "gcloud pubsub topics publish HEDEF_KONU --message='{\"komut\":\"calistir\"}'",
+      "mavi_takim_onerisi": "Pub/Sub yayinlama olaylarini izleyin; beklenmeyen mesajlari tespit edin.",
+      "saldiri_grafi_dugumu": "GCP_PubSubTopicCreate",
+      "saldiri_grafi_hedefi": "KodCalistirma"
+    },
+    {
+      "vektor_adi": "GCP_KMSKeyDecrypt",
+      "turkce_baslik": "KMS Anahtari ile Hassas Veri Cozme",
+      "gerekli_izinler": [["cloudkms.cryptoKeyVersions.useToDecrypt"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 8.0,
+      "aciklama": "Saldirgan, KMS anahtarini kullanarak sifreli hassas verileri cozebilir.",
+      "iyilestirme": "KMS anahtarlarina erisimi en az yetki prensibiyle sinirlandirin.",
+      "cloudtrail_izi": "Decrypt",
+      "somuru_komutu": "gcloud kms decrypt --key HEDEF_ANAHTAR --keyring HEDEF_ANAHTAR_HALKASI --location HEDEF_BOLGE --ciphertext-file SIFRELI_DOSYA --plaintext-file COZULMUS_DOSYA",
+      "mavi_takim_onerisi": "KMS Decrypt olaylarini izleyin; beklenmeyen veri cozme islemlerine karsi alarm kurun.",
+      "saldiri_grafi_dugumu": "GCP_KMSKeyDecrypt",
+      "saldiri_grafi_hedefi": "DataExfiltration"
+    }
+  ],
+  "ozel_durumlar": {
+    "bilinmeyen_yetki": {
+      "risk_skoru": 5.0,
+      "aciklama": "GCP IAM simulasyonu basarisiz oldu."
+    }
+  }
+}

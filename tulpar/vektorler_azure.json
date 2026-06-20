@@ -1,0 +1,124 @@
+{
+  "bulut_saglayici": "azure",
+  "aciklama": "Tulpar Azure IAM Yetki Yukseltme Vektor Tanimlari",
+  "vektorler": [
+    {
+      "vektor_adi": "Azure_RoleAssignmentCreate",
+      "turkce_baslik": "Rol Atamasi Olusturma",
+      "gerekli_izinler": [["Microsoft.Authorization/roleAssignments/write"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.8,
+      "aciklama": "Saldirgan, kendine veya baskasina yuksek yetkili Azure RBAC rolu atayabilir.",
+      "iyilestirme": "Microsoft.Authorization/roleAssignments/write yetkisini sadece guvenilir yoneticilere verin.",
+      "cloudtrail_izi": "Microsoft.Authorization/roleAssignments/write - Azure Activity Log",
+      "somuru_komutu": "az role assignment create --assignee HEDEF_KULLANICI --role Owner --scope /subscriptions/SUBSCRIPTION_ID",
+      "mavi_takim_onerisi": "Azure Activity Log'da role assignment olaylarini izleyin; PIM (Privileged Identity Management) ile JIT erisim uygulayin.",
+      "saldiri_grafi_dugumu": "Azure_RoleAssignmentCreate",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    },
+    {
+      "vektor_adi": "Azure_RoleDefinitionCreate",
+      "turkce_baslik": "Ozel Rol Tanimi Olusturma",
+      "gerekli_izinler": [["Microsoft.Authorization/roleDefinitions/write"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.5,
+      "aciklama": "Saldirgan, tum yetkileri iceren ozel bir RBAC rolu tanimlayip kendine atayabilir.",
+      "iyilestirme": "Microsoft.Authorization/roleDefinitions/write yetkisini sadece guvenilir yoneticilere verin.",
+      "cloudtrail_izi": "Microsoft.Authorization/roleDefinitions/write - Azure Activity Log",
+      "somuru_komutu": "az role definition create --role-definition '{\"Name\":\"GizliAdmin\",\"Actions\":[\"*\"],\"AssignableScopes\":[\"/subscriptions/SUBSCRIPTION_ID\"]}'",
+      "mavi_takim_onerisi": "Ozel rol tanimi olusturma olaylarini izleyin; Azure Policy ile ozel rol olusturmayi kisitlayin.",
+      "saldiri_grafi_dugumu": "Azure_RoleDefinitionCreate",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    },
+    {
+      "vektor_adi": "Azure_FunctionAppDeploy",
+      "turkce_baslik": "Function App Uzerinden Yetki Calma",
+      "gerekli_izinler": [["Microsoft.Web/sites/write", "Microsoft.Web/sites/config/list/action"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.3,
+      "aciklama": "Saldirgan, yonetilen kimlik (managed identity) ile Function App olusturup yetki yukseltebilir.",
+      "iyilestirme": "Function App olusturma yetkisini guvenilir gelistiricilere kisitlayin.",
+      "cloudtrail_izi": "Microsoft.Web/sites/write - Azure Activity Log",
+      "somuru_komutu": "az functionapp create --name saldiri-func --resource-group HEDEF_RG --consumption-plan-location westeurope --runtime python --functions-version 3 --assign-identity",
+      "mavi_takim_onerisi": "Function App olusturma olaylarini izleyin; yonetilen kimlik atamalarini denetleyin.",
+      "saldiri_grafi_dugumu": "Azure_FunctionAppDeploy",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    },
+    {
+      "vektor_adi": "Azure_VMCreate",
+      "turkce_baslik": "VM Olusturarak Yonetilen Kimlik Calma",
+      "gerekli_izinler": [["Microsoft.Compute/virtualMachines/write", "Microsoft.Resources/deployments/write"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.4,
+      "aciklama": "Saldirgan, yonetilen kimlik atanmis VM olusturup IMDS uzerinden token alabilir.",
+      "iyilestirme": "VM olusturma yetkisini guvenilir rollerle kisitlayin.",
+      "cloudtrail_izi": "Microsoft.Compute/virtualMachines/write - Azure Activity Log",
+      "somuru_komutu": "az vm create --name saldiri-vm --resource-group HEDEF_RG --image Ubuntu2204 --admin-username azureuser --assign-identity [system]",
+      "mavi_takim_onerisi": "VM olusturma ve yonetilen kimlik kullanimini Azure Activity Log'da izleyin.",
+      "saldiri_grafi_dugumu": "Azure_VMCreate",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    },
+    {
+      "vektor_adi": "Azure_StorageAccountKeyList",
+      "turkce_baslik": "Depolama Hesabi Anahtari Listeleme",
+      "gerekli_izinler": [["Microsoft.Storage/storageAccounts/listkeys/action"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 8.5,
+      "aciklama": "Saldirgan, depolama hesabi anahtarlarini listeleyerek tum verilere erisim saglayabilir.",
+      "iyilestirme": "listkeys yetkisini sadece guvenilir rollerle sinirlandirin; Azure AD kimlik dogrulamasini zorunlu kilin.",
+      "cloudtrail_izi": "Microsoft.Storage/storageAccounts/listKeys/action - Azure Activity Log",
+      "somuru_komutu": "az storage account keys list --account-name HEDEF_DEPOLAMA --resource-group HEDEF_RG",
+      "mavi_takim_onerisi": "listKeys olaylarini izleyin; depolama hesaplarinda Azure AD tabanli erisim kontrolu uygulayin.",
+      "saldiri_grafi_dugumu": "Azure_StorageAccountKeyList",
+      "saldiri_grafi_hedefi": "DataExfiltration"
+    },
+    {
+      "vektor_adi": "Azure_KeyVaultAccessPolicy",
+      "turkce_baslik": "Key Vault Erisim Politikasi Manipulasyonu",
+      "gerekli_izinler": [["Microsoft.KeyVault/vaults/write"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 8.8,
+      "aciklama": "Saldirgan, Key Vault erisim politikalarini degistirerek hassas sirlara erisim saglayabilir.",
+      "iyilestirme": "Key Vault erisim politikasi degisikliklerini sadece guvenilir yoneticilere kisitlayin.",
+      "cloudtrail_izi": "Microsoft.KeyVault/vaults/write - Azure Activity Log",
+      "somuru_komutu": "az keyvault set-policy --name HEDEF_KASA --object-id SALDIRGAN_OBJECT_ID --secret-permissions get list",
+      "mavi_takim_onerisi": "Key Vault erisim politikasi degisikliklerini izleyin; Azure Defender for Key Vault aktif edin.",
+      "saldiri_grafi_dugumu": "Azure_KeyVaultAccessPolicy",
+      "saldiri_grafi_hedefi": "DataExfiltration"
+    },
+    {
+      "vektor_adi": "Azure_ServicePrincipalCredential",
+      "turkce_baslik": "Servis Sorumlusu Kimlik Bilgisi Olusturma",
+      "gerekli_izinler": [["Microsoft.AzureActiveDirectory/applications/credentials/write"]],
+      "risk_seviyesi": "Kritik",
+      "risk_skoru": 9.2,
+      "aciklama": "Saldirgan, mevcut servis sorumlusuna yeni kimlik bilgisi ekleyerek bu kimlikle yetki yukseltebilir.",
+      "iyilestirme": "Servis sorumlusu kimlik bilgisi yonetimini sadece guvenilir yoneticilere kisitlayin.",
+      "cloudtrail_izi": "Microsoft.AzureActiveDirectory/applications/credentials/write - Azure AD Audit Log",
+      "somuru_komutu": "az ad app credential reset --id HEDEF_APP_ID --append",
+      "mavi_takim_onerisi": "Azure AD Audit Log'da uygulama kimlik bilgisi degisikliklerini izleyin.",
+      "saldiri_grafi_dugumu": "Azure_ServicePrincipalCredential",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    },
+    {
+      "vektor_adi": "Azure_AKSClusterAdmin",
+      "turkce_baslik": "AKS Kume Yonetici Kimlik Bilgisi Alma",
+      "gerekli_izinler": [["Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action"]],
+      "risk_seviyesi": "Yuksek",
+      "risk_skoru": 8.5,
+      "aciklama": "Saldirgan, AKS kumesinin yonetici kimlik bilgilerini alarak kume uzerinde tam kontrol saglayabilir.",
+      "iyilestirme": "listClusterAdminCredential yetkisini kaldirin veya sadece guvenilir yoneticilere kisitlayin.",
+      "cloudtrail_izi": "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
+      "somuru_komutu": "az aks get-credentials --resource-group HEDEF_RG --name HEDEF_KUME --admin",
+      "mavi_takim_onerisi": "AKS admin kimlik bilgisi erisimini izleyin; Azure AD ile RBAC entegrasyonu kurun.",
+      "saldiri_grafi_dugumu": "Azure_AKSClusterAdmin",
+      "saldiri_grafi_hedefi": "GlobalAdmin"
+    }
+  ],
+  "ozel_durumlar": {
+    "bilinmeyen_yetki": {
+      "risk_skoru": 5.0,
+      "aciklama": "Azure IAM simulasyonu basarisiz oldu."
+    }
+  }
+}

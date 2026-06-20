@@ -1,0 +1,43 @@
+# Tulpar DevSecOps Docker Compose
+# Kullanim:
+#   docker-compose up tulpar      — Tek seferlik tarama
+#   docker-compose up tulpar-web  — Web dashboard (http://localhost:8501)
+
+version: "3.8"
+
+services:
+  tulpar:
+    build: .
+    image: tulpar-scanner:latest
+    container_name: tulpar-scanner
+    volumes:
+      - ./raporlar:/app/raporlar
+      - ~/.aws:/home/tulpar/.aws:ro
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - PYTHONUNBUFFERED=1
+    command: >
+      --cloudtrail-analiz
+      --json-cikti /app/raporlar/tulpar_rapor.json
+      --html-cikti /app/raporlar/tulpar_grafik.html
+      --format sarif
+      --format-cikti /app/raporlar/tulpar_rapor.sarif
+      --duzelt
+      --duzeltme-cikti /app/raporlar/tulpar_remediation.md
+      --bloodhound-cikti /app/raporlar/tulpar_bloodhound.json
+
+  tulpar-web:
+    build: .
+    image: tulpar-scanner:latest
+    container_name: tulpar-web-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./raporlar:/app/raporlar
+      - ~/.aws:/home/tulpar/.aws:ro
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+    command: >
+      bash -c "pip install streamlit && streamlit run tulpar/web_dashboard.py --server.port 8501 --server.address 0.0.0.0"

@@ -8,16 +8,42 @@ raporlar/
 # Python geçici/derlenmiş dosyaları
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Python paketleme ve dağıtım (pyproject.toml için)
+build/
+dist/
+*.egg-info/
+.eggs/
 
 # Sanal ortamlar
 venv/
 .venv/
 env/
+ENV/
 
-# Test önbellekleri
+# Test ve kod kapsama önbellekleri
 .pytest_cache/
+.coverage
+htmlcov/
 
-# Tulpar tarama çıktıları
+# Çevre değişkenleri ve sırlar (AI API anahtarları vb.)
+.env
+.env.*
+*.env
+
+# Streamlit ayarları
+.streamlit/
+
+# İşletim sistemi geçici dosyaları
+.DS_Store
+Thumbs.db
+
+# Tulpar tarama çıktıları ve vektör dosyaları istisnası
 *.json
 !tulpar/vektorler.json
+!tulpar/vektorler_azure.json
+!tulpar/vektorler_gcp.json
 *.log
+

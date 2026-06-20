@@ -1,0 +1,9 @@
+[flake8]
+max-line-length = 120
+extend-ignore = W503
+per-file-ignores =
+    tulpar/rapor.py: E501
+    tulpar/web_dashboard.py: E501
+    tulpar/ai_analiz.py: E501
+    tulpar/k8s_tarayici.py: E501
+exclude = .git,__pycache__,build,dist,*.egg-info,.pytest_cache,raporlar

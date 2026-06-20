@@ -17,6 +17,7 @@ from tulpar.yardimcilar import (
     bloodhound_disa_aktar,
     tui_dashboard_goster,
     risk_skoru_tablosu_olustur,
+    ai_yonetici_ozeti_uret,
 )
 from tulpar.tarayici import GekSizmaScanner
 from tulpar.analiz import ExploitationMappingEngine
@@ -172,6 +173,52 @@ def ana_fonksiyon():
         choices=["aws", "gcp", "azure"],
         help="Tarama yapilacak bulut saglayicisi: aws, gcp, azure (varsayilan: aws)",
     )
+    arguman_isleyici.add_argument(
+        "--web",
+        action="store_true",
+        required=False,
+        default=False,
+        help="Streamlit tabanli web dashboard baslat",
+    )
+    arguman_isleyici.add_argument(
+        "--ai-analiz",
+        action="store_true",
+        required=False,
+        default=False,
+        help="AI/LLM destekli yonetici ozeti uret",
+    )
+    arguman_isleyici.add_argument(
+        "--ai-provider",
+        required=False,
+        default="openai",
+        choices=["openai", "claude", "bedrock"],
+        help="AI saglayici: openai, claude, bedrock (varsayilan: openai)",
+    )
+    arguman_isleyici.add_argument(
+        "--ai-api-key",
+        required=False,
+        default=None,
+        help="AI API anahtari (ortam degiskeninden de alinabilir)",
+    )
+    arguman_isleyici.add_argument(
+        "--k8s-tarama",
+        action="store_true",
+        required=False,
+        default=False,
+        help="Kubernetes (EKS) RBAC yetki yukseltme taramasi yap",
+    )
+    arguman_isleyici.add_argument(
+        "--kubeconfig",
+        required=False,
+        default=None,
+        help="Kubernetes kubeconfig dosya yolu (varsayilan: ~/.kube/config)",
+    )
+    arguman_isleyici.add_argument(
+        "--k8s-cikti",
+        required=False,
+        default="raporlar/tulpar_k8s_rapor.json",
+        help="Kubernetes tarama raporu cikti dosyasi",
+    )
 
     argumanlar = arguman_isleyici.parse_args()
 
@@ -213,6 +260,23 @@ def ana_fonksiyon():
         tui_dashboard_goster(argumanlar)
         return
 
+    if argumanlar.web:
+        from tulpar.web_dashboard import web_dashboard_baslat
+
+        web_dashboard_baslat(argumanlar)
+        return
+
+    if argumanlar.k8s_tarama:
+        from tulpar.k8s_tarayici import K8sRBACTarayici
+
+        logger.info("Kubernetes RBAC taramasi baslatiliyor...")
+        k8s_tarayici = K8sRBACTarayici(kubeconfig=argumanlar.kubeconfig)
+        k8s_bulgulari = k8s_tarayici.rbac_tarama_yap()
+        if k8s_bulgulari:
+            k8s_tarayici.k8s_raporu_yaz(argumanlar.k8s_cikti)
+            logger.info("K8s taramasi tamamlandi: %d bulgu -> %s", len(k8s_bulgulari), argumanlar.k8s_cikti)
+        sys.exit(0 if k8s_bulgulari else 1)
+
     if argumanlar.karsilastir:
         if not os.path.exists(argumanlar.karsilastir):
             logger.error("Karsilastirma icin belirtilen onceki rapor bulunamadi: %s", argumanlar.karsilastir)
@@ -220,7 +284,8 @@ def ana_fonksiyon():
         if not os.path.exists(argumanlar.json_cikti):
             logger.error("Karsilastirma icin yeni JSON raporu bulunamadi: %s", argumanlar.json_cikti)
             logger.info(
-                "Once onceki rapor belirtildi. Once Tulpar'i calistirip yeni raporu olusturun, sonra karsilastirma yapin."
+                "Once onceki rapor belirtildi. Once Tulpar'i calistirip "
+                "yeni raporu olusturun, sonra karsilastirma yapin."
             )
             sys.exit(1)
         fark_raporu = rapor_karsilastir(argumanlar.karsilastir, argumanlar.json_cikti, argumanlar.karsilastirma_cikti)
@@ -403,6 +468,25 @@ def ana_fonksiyon():
             bh_cikti_yolu = argumanlar.bloodhound_cikti
             bloodhound_disa_aktar(saldiri_yollari, bulunan_zafiyetler, bh_cikti_yolu, tarayici.kimlik_bilgileri)
             logger.info("BloodHound cikti dosyasi olusturuldu: %s", bh_cikti_yolu)
+
+        if argumanlar.ai_analiz:
+            logger.info("AI yonetici ozeti uretiliyor (%s)...", argumanlar.ai_provider)
+            ai_ozet = ai_yonetici_ozeti_uret(
+                bulunan_zafiyetler,
+                provider=argumanlar.ai_provider,
+                api_key=argumanlar.ai_api_key,
+            )
+            ai_cikti = argumanlar.json_cikti.replace(".json", "_ai_ozet.json")
+            with open(ai_cikti, "w", encoding="utf-8") as af:
+                json.dump(ai_ozet, af, ensure_ascii=False, indent=2)
+            logger.info("AI yonetici ozeti olusturuldu: %s", ai_cikti)
+            print("\n" + "=" * 60)
+            print("🤖 AI YÖNETİCİ ÖZETİ ({})".format(argumanlar.ai_provider.upper()))
+            print("=" * 60)
+            print(ai_ozet.get("ozet", ""))
+            print("-" * 60)
+            print("Genel Risk Seviyesi:", ai_ozet.get("genel_risk_seviyesi", "Bilinmiyor"))
+            print("=" * 60 + "\n")
 
         logger.info(
             "Tarama tamamlandi. %d zafiyet bulundu. Raporlar olusturuldu: %s, %s",

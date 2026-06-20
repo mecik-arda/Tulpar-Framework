@@ -109,7 +109,8 @@ class GekSizmaScanner:
                             }
                         )
                     logger.warning(
-                        "%d adet SCP (Service Control Policy) tespit edildi. IAM politikalari bu SCP'ler tarafindan kisitlaniyor olabilir!",
+                        "%d adet SCP (Service Control Policy) tespit edildi. "
+                        "IAM politikalari bu SCP'ler tarafindan kisitlaniyor olabilir!",
                         len(scp_listesi),
                     )
                     for detay in self.scp_detaylari:
@@ -359,14 +360,15 @@ class GekSizmaScanner:
             analizor_listesi = analizorler.get("analyzers", [])
             if not analizor_listesi:
                 logger.info(
-                    "IAM Access Analyzer: Aktif analizor bulunamadi. Hesapta Access Analyzer kurulumu yapilmamis olabilir."
+                    "IAM Access Analyzer: Aktif analizor bulunamadi. "
+                    "Hesapta Access Analyzer kurulumu yapilmamis olabilir."
                 )
                 self.accessanalyzer_bulgulari.append(
                     {
                         "durum": "analizor_yok",
                         "aciklama": "IAM Access Analyzer bu hesapta kurulu degil. "
                         "Cross-account yetki analizi icin Access Analyzer kurulumu onerilir.",
-                        "cozum_onerisi": "aws accessanalyzer create-analyzer --type ACCOUNT --analyzer-name tulpar-analizor",
+                        "cozum_onerisi": "aws accessanalyzer create-analyzer --type ACCOUNT --analyzer-name tulpar-analizor",  # noqa: E501
                     }
                 )
                 return self.accessanalyzer_bulgulari
@@ -435,7 +437,7 @@ class GekSizmaScanner:
         tum_sonuclar = {}
         sayfa_boyutu = 200
         for i in range(0, len(eylem_listesi), sayfa_boyutu):
-            sayfa_eylemleri = eylem_listesi[i : i + sayfa_boyutu]
+            sayfa_eylemleri = eylem_listesi[i: i + sayfa_boyutu]
             try:
                 yanit = self.iam_istemicisi.simulate_principal_policy(
                     PolicySourceArn=prennsip_arn, ActionNames=sayfa_eylemleri, ResourceArns=[kaynak_arn]

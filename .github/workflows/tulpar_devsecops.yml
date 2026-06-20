@@ -1,0 +1,175 @@
+# Tulpar DevSecOps Pipeline
+# Bu workflow, her pull request ve push isleminde otomatik guvenlik taramasi yapar.
+# SARIF sonuclarini GitHub Security sekmesine yukler.
+# Kullanim: .github/workflows/ dizinine bu dosyayi kopyalayin.
+
+name: Tulpar DevSecOps Guvenlik Kapisi
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/*.tf'
+      - '**/*.py'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/Dockerfile'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bulut:
+        description: 'Bulut saglayici (aws/gcp/azure)'
+        required: false
+        default: 'aws'
+      hizli:
+        description: 'Hizli mod (sadece 15 kritik vektor)'
+        required: false
+        default: 'true'
+  schedule:
+    - cron: '57 2 * * *'  # Her gece 02:57 UTC
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+jobs:
+  # === Kod Kalitesi ve Test ===
+  code-quality:
+    name: "🔍 Kod Kalitesi ve Test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Bagimliliklari yukle
+        run: |
+          pip install -e ".[dev]"
+          pip install pytest pytest-cov
+
+      - name: Lint kontrolu (ruff)
+        run: ruff check tulpar/ --output-format=github || true
+
+      - name: Kod format kontrolu (black)
+        run: black --check tulpar/ --diff || true
+
+      - name: Birim testleri
+        run: python -m pytest test_tulpar.py -v --tb=short --cov=tulpar --cov-report=xml
+
+      - name: Test coverage raporu
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # === Tulpar Guvenlik Taramasi (AWS OIDC) ===
+  tulpar-scan:
+    name: "🛡️ Tulpar IAM Taramasi"
+    needs: code-quality
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-scan')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Bagimliliklari yukle
+        run: pip install -e .
+
+      - name: AWS kimlik bilgilerini yapilandir (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TULPAR_TARAMA_ROLU_ARN }}
+          aws-region: us-east-1
+
+      - name: Tulpar taramasi calistir
+        id: tulpar
+        continue-on-error: true
+        run: |
+          HIZLI_FLAG=""
+          if [ "${{ github.event.inputs.hizli }}" = "true" ] || [ -z "${{ github.event.inputs.hizli }}" ]; then
+            HIZLI_FLAG="--hizli"
+          fi
+          python -m tulpar \
+            $HIZLI_FLAG \
+            --cloudtrail-analiz \
+            --format sarif \
+            --format-cikti tulpar_rapor.sarif \
+            --json-cikti tulpar_rapor.json \
+            --html-cikti tulpar_grafik.html \
+            --bloodhound-cikti tulpar_bloodhound.json \
+            --duzelt \
+            --duzeltme-cikti tulpar_remediation.md
+
+      - name: SARIF sonuclarini GitHub'a yukle
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: tulpar_rapor.sarif
+          category: tulpar-iam-scan
+
+      - name: Tarama sonuclarini artifact olarak sakla
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tulpar-scan-results
+          path: |
+            tulpar_rapor.json
+            tulpar_rapor.sarif
+            tulpar_grafik.html
+            tulpar_bloodhound.json
+            tulpar_remediation.md
+
+      - name: Job Ozeti
+        if: always()
+        run: |
+          echo "## 🛡️ Tulpar Tarama Sonucu" >> $GITHUB_STEP_SUMMARY
+          echo "**Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
+          if [ -f tulpar_rapor.json ]; then
+            ZAFIYET_SAYISI=$(python -c "import json; print(json.load(open('tulpar_rapor.json'))['zafiyet_sayisi'])")
+            echo "- **Tespit Edilen Zafiyet:** $ZAFIYET_SAYISI" >> $GITHUB_STEP_SUMMARY
+            echo "- **Rapor:** [tulpar_grafik.html](./tulpar_grafik.html)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Durum:** ${{ steps.tulpar.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  # === Docker Build ve Tarama ===
+  docker-scan:
+    name: "🐳 Docker Imaji Olustur ve Tara"
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker imaji olustur
+        run: docker build -t tulpar-scanner:latest .
+
+      - name: Docker ile Tulpar calistir
+        run: |
+          docker run --rm tulpar-scanner:latest --help
+
+      - name: Trivy guvenlik taramasi
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tulpar-scanner:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Trivy sonuclarini yukle
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: tulpar-docker-scan

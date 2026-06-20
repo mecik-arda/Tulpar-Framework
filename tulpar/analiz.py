@@ -103,7 +103,8 @@ class ExploitationMappingEngine:
                             bulgu["bolge"], bulgu["kaynak_sayisi"], bulgu["kaynak_turu"], bulgu["onem"]
                         ),
                         "cloudtrail_izi": "{}:Describe/List API cagrilari".format(bulgu["kaynak_turu"]),
-                        "sikiastirma_onerisi": "{} bolgesindeki {} kaynaklarinin guvenlik yapilandirmalarini gozden gecirin.".format(
+                        "sikiastirma_onerisi": "{} bolgesindeki {} kaynaklarinin "
+                        "guvenlik yapilandirmalarini gozden gecirin.".format(
                             bulgu["bolge"], bulgu["kaynak_turu"]
                         ),
                     }

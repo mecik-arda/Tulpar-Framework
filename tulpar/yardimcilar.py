@@ -157,6 +157,21 @@ def aws_hatasi_yonet(hata, islem_adi):
         logger.error("%s - Beklenmeyen Hata [%s]: %s", islem_adi, hata_kodu, hata_mesaji)
 
 
+# Lazy import edilen moduller — sadece cagrildiginda yuklenir
+def web_dashboard_baslat(argumanlar):
+    """Streamlit web dashboard baslatir (lazy import)."""
+    from tulpar.web_dashboard import web_dashboard_baslat as _web_baslat
+
+    return _web_baslat(argumanlar)
+
+
+def ai_yonetici_ozeti_uret(bulunan_zafiyetler, provider="openai", api_key=None, model=None):
+    """AI yonetici ozeti uretir (lazy import)."""
+    from tulpar.ai_analiz import ai_yonetici_ozeti_uret as _ai_uret
+
+    return _ai_uret(bulunan_zafiyetler, provider=provider, api_key=api_key, model=model)
+
+
 def sri_hash_hesapla(dosya_yolu):
     sha384_hash = hashlib.sha384()
     with open(dosya_yolu, "rb") as dosya:
@@ -174,11 +189,12 @@ def cevrimdisi_asset_indir(hedef_klasor, bootstrap_url, vis_network_url):
     vis_network_yerel_yol = os.path.join(hedef_klasor, "vis-network.min.js")
     try:
         logger.info("Cevrimdisi asset indiriliyor: Bootstrap CSS...")
-        urllib.request.urlretrieve(bootstrap_url, bootstrap_yerel_yol)
+        urllib.request.urlretrieve(bootstrap_url, bootstrap_yerel_yol)  # nosec B310
         indirilen_hash = sri_hash_hesapla(bootstrap_yerel_yol)
         if indirilen_hash != SRI_BOOTSTRAP_HASH:
             logger.warning(
-                "Bootstrap CSS hash uyusmazligi! Beklenen: %s, Indirilen: %s. Dosya bozuk veya manipule edilmis olabilir.",
+                "Bootstrap CSS hash uyusmazligi! Beklenen: %s, Indirilen: %s. "
+                "Dosya bozuk veya manipule edilmis olabilir.",
                 SRI_BOOTSTRAP_HASH,
                 indirilen_hash,
             )
@@ -192,11 +208,12 @@ def cevrimdisi_asset_indir(hedef_klasor, bootstrap_url, vis_network_url):
         indirilen_dosyalar["bootstrap"] = None
     try:
         logger.info("Cevrimdisi asset indiriliyor: vis-network JS...")
-        urllib.request.urlretrieve(vis_network_url, vis_network_yerel_yol)
+        urllib.request.urlretrieve(vis_network_url, vis_network_yerel_yol)  # nosec B310
         indirilen_hash = sri_hash_hesapla(vis_network_yerel_yol)
         if indirilen_hash != SRI_VIS_NETWORK_HASH:
             logger.warning(
-                "vis-network JS hash uyusmazligi! Beklenen: %s, Indirilen: %s. Dosya bozuk veya manipule edilmis olabilir.",
+                "vis-network JS hash uyusmazligi! Beklenen: %s, Indirilen: %s. "
+                "Dosya bozuk veya manipule edilmis olabilir.",
                 SRI_VIS_NETWORK_HASH,
                 indirilen_hash,
             )
@@ -461,7 +478,8 @@ def duzeltme_scripti_uret(bulgular, cikti_dosyasi):
         satirlar.append("**Uretim Tarihi:** " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         satirlar.append("")
         satirlar.append(
-            "> **UYARI:** Bu script otomatik uretilmistir. Uygulamadan once mutlaka gozden gecirin ve test ortaminda deneyin."
+            "> **UYARI:** Bu script otomatik uretilmistir. "
+            "Uygulamadan once gozden gecirin ve test ortaminda deneyin."
         )
         satirlar.append("")
         satirlar.append("---")
@@ -469,24 +487,90 @@ def duzeltme_scripti_uret(bulgular, cikti_dosyasi):
 
         duzeltme_eylemleri = {
             "iam:CreatePolicyVersion": {
-                "aws_cli": "aws iam delete-policy-version --policy-arn HEDEF_POLITIKA_ARN --version-id v2",
-                "terraform": 'resource "aws_iam_policy" "guvenli_politika" {\n  name        = "guvenli-politika"\n  description = "Siki politika"\n  policy      = data.aws_iam_policy_document.guvenli.json\n}',
-                "oneri": "Politika surumu olusturma yetkisini kaldirin veya sadece belirli politikalara kisitlayin.",
+                "aws_cli": (
+                    "aws iam delete-policy-version --policy-arn HEDEF_POLITIKA_ARN --version-id v2"
+                ),
+                "terraform": (
+                    'resource "aws_iam_policy" "guvenli_politika" {\n'
+                    '  name        = "guvenli-politika"\n'
+                    '  description = "Siki politika"\n'
+                    '  policy      = data.aws_iam_policy_document.guvenli.json\n'
+                    '}'
+                ),
+                "oneri": (
+                    "Politika surumu olusturma yetkisini kaldirin "
+                    "veya sadece belirli politikalara kisitlayin."
+                ),
             },
             "iam:AttachUserPolicy": {
-                "aws_cli": "aws iam detach-user-policy --user-name HEDEF_KULLANICI --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
-                "terraform": 'resource "aws_iam_user_policy_attachment" "guvenli" {\n  user       = aws_iam_user.kullanici.name\n  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"\n}',
-                "oneri": "Kullaniciya dogrudan AdministratorAccess gibi yuksek yetkili politikalar eklenmesini engelleyin.",
+                "aws_cli": (
+                    "aws iam detach-user-policy --user-name HEDEF_KULLANICI "
+                    "--policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+                ),
+                "terraform": (
+                    'resource "aws_iam_user_policy_attachment" "guvenli" {\n'
+                    '  user       = aws_iam_user.kullanici.name\n'
+                    '  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"\n'
+                    '}'
+                ),
+                "oneri": (
+                    "Kullaniciya dogrudan AdministratorAccess gibi yuksek yetkili "
+                    "politikalar eklenmesini engelleyin."
+                ),
             },
             "iam:PassRole": {
-                "aws_cli": '# IAM Policy Condition ile PassRole kisitlamasi:\naws iam put-role-policy --role-name HEDEF_ROL --policy-name passrole-kisitlamasi --policy-document \'{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"iam:PassRole","Resource":"*","Condition":{"StringNotEquals":{"iam:PassedToService":"ec2.amazonaws.com"}}}]}\'',
-                "terraform": 'resource "aws_iam_role_policy" "passrole_kisitlamasi" {\n  name = "passrole-kisitlamasi"\n  role = aws_iam_role.hedef_rol.id\n  policy = jsonencode({\n    Version = "2012-10-17"\n    Statement = [{\n      Effect = "Deny"\n      Action = "iam:PassRole"\n      Resource = "*"\n    }]\n  })\n}',
-                "oneri": "PassRole yetkisini sadece guvenilir servisler ve belirli rollerle sinirlandirin.",
+                "aws_cli": (
+                    "# IAM Policy Condition ile PassRole kisitlamasi:\n"
+                    "aws iam put-role-policy --role-name HEDEF_ROL "
+                    "--policy-name passrole-kisitlamasi "
+                    "--policy-document '{\"Version\":\"2012-10-17\","
+                    "\"Statement\":[{\"Effect\":\"Deny\","
+                    "\"Action\":\"iam:PassRole\",\"Resource\":\"*\","
+                    "\"Condition\":{\"StringNotEquals\":"
+                    "{\"iam:PassedToService\":\"ec2.amazonaws.com\"}}}]}'"
+                ),
+                "terraform": (
+                    'resource "aws_iam_role_policy" "passrole_kisitlamasi" {\n'
+                    '  name = "passrole-kisitlamasi"\n'
+                    '  role = aws_iam_role.hedef_rol.id\n'
+                    '  policy = jsonencode({\n'
+                    '    Version = "2012-10-17"\n'
+                    '    Statement = [{\n'
+                    '      Effect = "Deny"\n'
+                    '      Action = "iam:PassRole"\n'
+                    '      Resource = "*"\n'
+                    '    }]\n'
+                    '  })\n'
+                    '}'
+                ),
+                "oneri": (
+                    "PassRole yetkisini sadece guvenilir servisler "
+                    "ve belirli rollerle sinirlandirin."
+                ),
             },
             "ssm:SendCommand": {
-                "aws_cli": "# SSM SendCommand yetkisini kaldirin:\naws iam delete-role-policy --role-name HEDEF_ROL --policy-name ssm-send-command",
-                "terraform": 'resource "aws_iam_policy" "ssm_kisitlamasi" {\n  name = "ssm-kisitlamasi"\n  policy = jsonencode({\n    Version = "2012-10-17"\n    Statement = [{\n      Effect = "Deny"\n      Action = "ssm:SendCommand"\n      Resource = "*"\n    }]\n  })\n}',
-                "oneri": "SSM SendCommand yetkisini kaldirin veya sadece belirli EC2 kaynaklarina kisitlayin.",
+                "aws_cli": (
+                    "# SSM SendCommand yetkisini kaldirin:\n"
+                    "aws iam delete-role-policy --role-name HEDEF_ROL "
+                    "--policy-name ssm-send-command"
+                ),
+                "terraform": (
+                    'resource "aws_iam_policy" "ssm_kisitlamasi" {\n'
+                    '  name = "ssm-kisitlamasi"\n'
+                    '  policy = jsonencode({\n'
+                    '    Version = "2012-10-17"\n'
+                    '    Statement = [{\n'
+                    '      Effect = "Deny"\n'
+                    '      Action = "ssm:SendCommand"\n'
+                    '      Resource = "*"\n'
+                    '    }]\n'
+                    '  })\n'
+                    '}'
+                ),
+                "oneri": (
+                    "SSM SendCommand yetkisini kaldirin veya "
+                    "sadece belirli EC2 kaynaklarina kisitlayin."
+                ),
             },
         }
 

@@ -45,7 +45,7 @@ def slack_bildirimi_gonder(webhook_url, mesaj):
             data=veri,
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(istek, timeout=10)
+        urllib.request.urlopen(istek, timeout=10)  # nosec B310
         logger.info("Slack bildirimi gonderildi")
         return True
     except Exception as hata:
