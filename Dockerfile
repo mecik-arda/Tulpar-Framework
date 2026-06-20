@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="Tulpar Scanner"
 LABEL org.opencontainers.image.description="Kurumsal Cloud IAM Yetki Yukseltme Tarayicisi"
 LABEL org.opencontainers.image.source="https://github.com/mecik-arda/Tulpar-Framework"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.version="2.2.0"
+LABEL org.opencontainers.image.version="3.0.0"
 
 RUN useradd --create-home --shell /bin/bash tulpar && \
     mkdir -p /app/raporlar && \

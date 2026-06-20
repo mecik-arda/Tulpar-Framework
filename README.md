@@ -1,44 +1,55 @@
-# Tulpar — AWS IAM Privilege Escalation Scanner
+# Tulpar — Multi-Cloud & Kubernetes IAM/RBAC Privilege Escalation Scanner (v3.0.0)
 
-Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme (privilege escalation) vektörlerini tarayan bir güvenlik aracıdır. Araç, bir AWS hesabına ait erişim anahtarları ile çalışarak mevcut yetkileri simüle eder, tespit edilen yolları listeler ve sonuçları JSON, CSV, Markdown, SARIF, BloodHound raporları ile HTML saldırı grafiği olarak sunar.
+Tulpar, AWS, GCP, Azure ve Kubernetes ortamlarında yetki yükseltme (privilege escalation) ve güvenlik zafiyet vektörlerini tarayan gelişmiş bir güvenlik aracıdır. Projenizdeki IAM politikalarını ve Kubernetes RBAC tanımlarını analiz ederek olası yetki yükseltme yollarını modeller ve sonuçları JSON, CSV, Markdown, SARIF, BloodHound formatları ile etkileşimli HTML grafiği ve modern Web Dashboard üzerinden sunar.
 
-## Yeni Özellikler (v2.2.0)
+## Yeni Özellikler (v3.0.0)
 
-### 🛡️ CloudTrail Analizi
-- `--cloudtrail-analiz` bayrağı ile tespit edilen zafiyetlerin son 7 günlük CloudTrail loglarında kullanılıp kullanılmadığı kontrol edilir
-- Her zafiyet için `cloudtrail_istismar_durumu` alanı eklenir (olay sayısı, istismar olasılığı, örnek olaylar)
-- CloudTrail loglarında tespit edilen zafiyetlerin kullanım durumu raporlanır
-- `--cloudtrail-gun` ile geriye dönük gün sayısı ayarlanabilir
+### 🌐 Modern Web Dashboard
+- `--web` bayrağı ile Streamlit tabanlı, karanlık temalı interaktif bir web paneli başlatılır.
+- Bulgular, risk dağılımı, canlı ilerleme çubuğu, etkileşimli saldırı grafiği ve düzeltme betikleri indirme olanağı sunar.
 
-### 🤖 Düzeltme (Remediation) Çıktıları
-- `--duzelt` bayrağı ile bulunan zafiyetler için AWS CLI ve Terraform düzeltme kod blokları üretilir
-- `--duzeltme-cikti` ile çıktı dosyası yolu özelleştirilebilir
-- Her zafiyet tipi için spesifik düzeltme komutları oluşturulur
+### 🤖 AI/LLM Destekli Yönetici Özeti
+- `--ai-analiz` bayrağı ile OpenAI (GPT-4o), Claude (Sonnet) ve AWS Bedrock aracılığıyla CISO/CTO seviyesinde üst düzey yönetici özeti çıkarılır.
+- API erişimi olmaması veya bağlantı sorunlarında çalışan yerel (fallback) özetleyici.
 
-### 🕸️ BloodHound / Neo4j Dışa Aktarımı
-- `--bloodhound-cikti` ile saldırı yolları BloodHound 4.x / Neo4j uyumlu JSON formatında dışa aktarılır
-- Düğümler AZPrincipal, AZHighValue, AZUser tipleriyle etiketlenir
-- Kenarlar AZPrivilegeEscalation ve AZAdminAccess ilişkileriyle işaretlenir
+### ☸️ Kubernetes RBAC Tarayıcı Entegrasyonu
+- `--k8s-tarama` bayrağı ile Kubernetes (EKS vb.) kümelerindeki RBAC (Role-Based Access Control) konfigürasyonunu tarar.
+- Riskli ClusterRole, RoleBinding ve yetki yükseltme yollarını raporlar.
 
-### 🧠 IAM Access Analyzer Entegrasyonu
-- `--access-analyzer` bayrağı ile cross-account ve public rol bulguları taranır
-- Access Analyzer bulguları Tulpar raporuna dahil edilir
-- Access Analyzer kurulu değilse kurulum önerisi sunulur
+### 🐳 Konteyner ve DevSecOps Altyapısı
+- Projeyi anında ayağa kaldırmak için `Dockerfile` ve `docker-compose.yml` eklendi.
+- `.github/workflows/tulpar_devsecops.yml` ile Bandit, Flake8 ve Pytest içeren tam DevSecOps kontrol hattı entegre edildi.
 
-### 🖥️ Terminal Arayüzü (TUI)
-- `--tui` bayrağı ile Rich kütüphanesi tabanlı terminal arayüzü
-- Tarama ilerlemesi ve özet tablosu
-- `pip install rich` ile kurulum
+### 📦 PyPI/Pip Paket Yapısı (`pyproject.toml`)
+- Modern setuptools standartlarına uygun olarak `pyproject.toml` tanımlandı. Proje doğrudan bir Python modülü olarak paketlenebilir.
 
-### 🌩️ Multi-Cloud Desteği (GCP ve Azure)
-- `--bulut gcp` veya `--bulut azure` ile GCP ve Azure IAM vektörleri taranabilir
-- `vektorler_gcp.json` (8 GCP vektörü) ve `vektorler_azure.json` (8 Azure vektörü)
-- Her bulut sağlayıcı için özel sömürü komutları ve log izleri
+### 🛡️ CloudTrail Analizi (v2.2.0)
+- `--cloudtrail-analiz` bayrağı ile tespit edilen zafiyetlerin son 7 günlük CloudTrail loglarında kullanılıp kullanılmadığı kontrol edilir.
+- Her zafiyet için `cloudtrail_istismar_durumu` alanı eklenir (olay sayısı, istismar olasılığı, örnek olaylar).
+- `--cloudtrail-gun` ile geriye dönük gün sayısı ayarlanabilir.
 
-### 🚀 AWS Lambda Entegrasyonu
-- `lambda_handler.py` ile Tulpar AWS Lambda fonksiyonu olarak çalışabilir
-- SNS ve Slack bildirim desteği
-- EventBridge trigger ile zamanlanmış tarama desteği
+### 🤖 Düzeltme (Remediation) Çıktıları (v2.2.0)
+- `--duzelt` bayrağı ile bulunan zafiyetler için AWS CLI ve Terraform düzeltme kod blokları üretilir.
+- `--duzeltme-cikti` ile çıktı dosyası yolu özelleştirilebilir.
+
+### 🕸️ BloodHound / Neo4j Dışa Aktarımı (v2.2.0)
+- `--bloodhound-cikti` ile saldırı yolları BloodHound 4.x / Neo4j uyumlu JSON formatında dışa aktarılır.
+- Düğümler AZPrincipal, AZHighValue, AZUser tipleriyle etiketlenir.
+- Kenarlar AZPrivilegeEscalation ve AZAdminAccess ilişkileriyle işaretlenir.
+
+### 🧠 IAM Access Analyzer Entegrasyonu (v2.2.0)
+- `--access-analyzer` bayrağı ile cross-account ve public rol bulguları taranır.
+- Access Analyzer bulguları Tulpar raporuna dahil edilir.
+
+### 🖥️ Terminal Arayüzü (TUI) (v2.2.0)
+- `--tui` bayrağı ile Rich kütüphanesi tabanlı terminal arayüzü sağlanır.
+
+### 🌩️ Multi-Cloud Desteği (GCP ve Azure) (v2.2.0)
+- `--bulut gcp` veya `--bulut azure` ile GCP ve Azure IAM vektörleri taranabilir.
+- `vektorler_gcp.json` (8 GCP vektörü) ve `vektorler_azure.json` (8 Azure vektörü).
+
+### 🚀 AWS Lambda Entegrasyonu (v2.2.0)
+- `lambda_handler.py` ile Tulpar AWS Lambda fonksiyonu olarak çalışabilir.
 
 ## Özellikler
 
@@ -362,7 +373,12 @@ python -m tulpar \
   --cloudtrail-analiz \
   --access-analyzer \
   --duzelt \
-  --bloodhound-cikti raporlar/tulpar_bloodhound.json
+  --bloodhound-cikti raporlar/tulpar_bloodhound.json \
+  --web \
+  --ai-analiz \
+  --ai-provider openai \
+  --k8s-tarama \
+  --k8s-cikti raporlar/tulpar_k8s_rapor.json
 ```
 
 ### Parametreler
@@ -396,6 +412,13 @@ python -m tulpar \
 | `--bloodhound-cikti` | Hayır | `None` | BloodHound/Neo4j JSON çıktı dosyası |
 | `--tui` | Hayır | `False` | Rich tabanlı modern TUI arayüzü |
 | `--bulut` | Hayır | `aws` | Bulut sağlayıcı: `aws`, `gcp`, `azure` |
+| `--web` | Hayır | `False` | Streamlit tabanlı web dashboard'u başlatır |
+| `--ai-analiz` | Hayır | `False` | AI/LLM destekli yönetici özeti üretir |
+| `--ai-provider` | Hayır | `openai` | AI sağlayıcısı seçimi (`openai`, `claude`, `bedrock`) |
+| `--ai-api-key` | Hayır | `None` | AI API anahtarı (ortam değişkeninden de okunabilir) |
+| `--k8s-tarama` | Hayır | `False` | Kubernetes (EKS vb.) RBAC yetki yükseltme taraması yapar |
+| `--kubeconfig` | Hayır | `None` | Kubernetes kubeconfig dosya yolu (varsayılan: `~/.kube/config`) |
+| `--k8s-cikti` | Hayır | `raporlar/tulpar_k8s_rapor.json` | Kubernetes tarama raporu çıktı dosyası |
 
 ## Çıktı Dosyaları
 
@@ -427,7 +450,7 @@ python -m tulpar \
 ```json
 {
   "tarama_tarihi": "2026-06-18T14:30:00",
-  "arac_surumu": "2.1.0",
+  "arac_surumu": "3.0.0",
   "zafiyet_sayisi": 5,
   "scp_kisitlamasi_var": false,
   "kritik_zafiyet_sayisi": 3,
@@ -446,7 +469,7 @@ python -m tulpar \
 
 ```
 tulpar/
-├── __init__.py              Paket başlatıcı, sürüm bilgisi (v2.2.0)
+├── __init__.py              Paket başlatıcı, sürüm bilgisi (v3.0.0)
 ├── __main__.py              python -m tulpar giriş noktası
 ├── sabitler.py              Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri, çıktı formatları
 ├── vektorler.json           Dinamik kural veritabanı - AWS (65 vektör, 58 benzersiz IAM eylemi)
@@ -460,7 +483,14 @@ tulpar/
 │                            CloudTrail istismar analizi, Access Analyzer entegrasyonu
 ├── rapor.py                 AttackGraphGenerator (XSS korumalı) + ReportWriter + CokluFormatRaporlayici
 ├── lambda_handler.py        AWS Lambda handler — SNS/Slack bildirimli sürekli güvenlik taraması
+├── ai_analiz.py             AI/LLM yönetici özeti motoru (OpenAI, Claude, Bedrock)
+├── web_dashboard.py         Streamlit tabanlı web arayüzü ve görselleştirme paneli
+├── k8s_tarayici.py          Kubernetes RBAC yetki yükseltme tarayıcısı ve analizörü
 └── main.py                  CLI (argparse), tarama profilleri, exit code, kimlik çözümleme
+Dockerfile                   DevSecOps ortamı için Docker imajı
+docker-compose.yml           Docker Compose yapılandırması
+pyproject.toml               PyPI paketleme ve bağımlılık yönetimi dosyası
+.flake8                      Kod kalitesi kuralları
 test_tulpar.py               51 birim testi (unittest.mock)
 ```
 

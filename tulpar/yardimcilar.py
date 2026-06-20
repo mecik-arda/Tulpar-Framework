@@ -658,6 +658,7 @@ def duzeltme_scripti_uret(bulgular, cikti_dosyasi):
 
 def bloodhound_disa_aktar(saldiri_yollari, bulunan_zafiyetler, cikti_dosyasi, kimlik_bilgileri=None):
     """Saldiri yollarini BloodHound/Neo4j uyumlu JSON formatinda disa aktarir."""
+    from tulpar.sabitler import SURUM
     try:
         os.makedirs(os.path.dirname(os.path.abspath(cikti_dosyasi)) or ".", exist_ok=True)
         dugumler = []
@@ -731,7 +732,7 @@ def bloodhound_disa_aktar(saldiri_yollari, bulunan_zafiyetler, cikti_dosyasi, ki
 
         bloodhound_verisi = {
             "format": "BloodHound 4.x / Neo4j Compatible",
-            "source": "Tulpar AWS IAM Scanner v2.1.0",
+            "source": f"Tulpar AWS IAM Scanner v{SURUM}",
             "export_date": datetime.now().isoformat(),
             "metadata": {
                 "total_nodes": len(dugumler),

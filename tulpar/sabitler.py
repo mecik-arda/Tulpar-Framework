@@ -1,4 +1,4 @@
-SURUM = "2.2.0"
+SURUM = "3.0.0"
 
 VARSAYILAN_BOLGELER = [
     "us-east-1",
