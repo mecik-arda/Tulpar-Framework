@@ -1,11 +1,12 @@
 from tulpar.sabitler import SURUM
 
 __all__ = [
-    'GekSizmaScanner',
-    'ExploitationMappingEngine',
-    'AttackGraphGenerator',
-    'ReportWriter',
-    'SURUM'
+    "GekSizmaScanner",
+    "ExploitationMappingEngine",
+    "AttackGraphGenerator",
+    "ReportWriter",
+    "SURUM",
+    "lambda_handler",
 ]
 
 from tulpar.tarayici import GekSizmaScanner

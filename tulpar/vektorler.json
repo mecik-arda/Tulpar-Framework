@@ -1,17 +1,17 @@
 {
   "vektorler": [
     {
-      "vektor_adi": "CreateNewPolicyVersion",
+      "vektor_adi": "CreatePolicyVersion",
       "turkce_baslik": "Politika Surumu Manipulasyonu",
-      "gerekli_izinler": [["iam:CreateNewPolicyVersion"]],
+      "gerekli_izinler": [["iam:CreatePolicyVersion"]],
       "risk_seviyesi": "Kritik",
       "risk_skoru": 9.0,
       "aciklama": "Saldirgan, mevcut politikalara yeni surumler ekleyerek Administrator yetkilerine ulasabilir.",
-      "iyilestirme": "iam:CreateNewPolicyVersion yetkisini kaldirin veya sadece belirli politikalara kisitlayin.",
-      "cloudtrail_izi": "CreateNewPolicyVersion",
+      "iyilestirme": "iam:CreatePolicyVersion yetkisini kaldirin veya sadece belirli politikalara kisitlayin.",
+      "cloudtrail_izi": "CreatePolicyVersion",
       "somuru_komutu": "aws iam create-policy-version --policy-arn arn:aws:iam::HESAP_ID:policy/HEDEF_POLITIKA --policy-document file://admin_politikasi.json --set-as-default",
-      "mavi_takim_onerisi": "CloudTrail'de CreateNewPolicyVersion olaylarini izleyin; beklenmeyen politika surumu guncellemeleri icin anlik alarm kurun. IAM politikalarinda surum kilitlemesi aktif edin.",
-      "saldiri_grafi_dugumu": "CreateNewPolicyVersion",
+      "mavi_takim_onerisi": "CloudTrail'de CreatePolicyVersion olaylarini izleyin; beklenmeyen politika surumu guncellemeleri icin anlik alarm kurun. IAM politikalarinda surum kilitlemesi aktif edin.",
+      "saldiri_grafi_dugumu": "CreatePolicyVersion",
       "saldiri_grafi_hedefi": "AdministratorAccess"
     },
     {

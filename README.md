@@ -1,15 +1,53 @@
 # Tulpar — AWS IAM Privilege Escalation Scanner
 
-Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme (privilege escalation) vektörlerini otomatik olarak tarayan, analiz eden ve görselleştiren gelişmiş bir ofansif güvenlik aracıdır. Araç, bir AWS hesabına ait erişim anahtarları ile çalışarak mevcut yetkileri simüle eder, istismar edilebilir yolları tespit eder ve sonuçları JSON, CSV, Markdown, SARIF raporları ile interaktif HTML saldırı grafiği olarak sunar.
+Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme (privilege escalation) vektörlerini tarayan bir güvenlik aracıdır. Araç, bir AWS hesabına ait erişim anahtarları ile çalışarak mevcut yetkileri simüle eder, tespit edilen yolları listeler ve sonuçları JSON, CSV, Markdown, SARIF, BloodHound raporları ile HTML saldırı grafiği olarak sunar.
+
+## Yeni Özellikler (v2.2.0)
+
+### 🛡️ CloudTrail Analizi
+- `--cloudtrail-analiz` bayrağı ile tespit edilen zafiyetlerin son 7 günlük CloudTrail loglarında kullanılıp kullanılmadığı kontrol edilir
+- Her zafiyet için `cloudtrail_istismar_durumu` alanı eklenir (olay sayısı, istismar olasılığı, örnek olaylar)
+- CloudTrail loglarında tespit edilen zafiyetlerin kullanım durumu raporlanır
+- `--cloudtrail-gun` ile geriye dönük gün sayısı ayarlanabilir
+
+### 🤖 Düzeltme (Remediation) Çıktıları
+- `--duzelt` bayrağı ile bulunan zafiyetler için AWS CLI ve Terraform düzeltme kod blokları üretilir
+- `--duzeltme-cikti` ile çıktı dosyası yolu özelleştirilebilir
+- Her zafiyet tipi için spesifik düzeltme komutları oluşturulur
+
+### 🕸️ BloodHound / Neo4j Dışa Aktarımı
+- `--bloodhound-cikti` ile saldırı yolları BloodHound 4.x / Neo4j uyumlu JSON formatında dışa aktarılır
+- Düğümler AZPrincipal, AZHighValue, AZUser tipleriyle etiketlenir
+- Kenarlar AZPrivilegeEscalation ve AZAdminAccess ilişkileriyle işaretlenir
+
+### 🧠 IAM Access Analyzer Entegrasyonu
+- `--access-analyzer` bayrağı ile cross-account ve public rol bulguları taranır
+- Access Analyzer bulguları Tulpar raporuna dahil edilir
+- Access Analyzer kurulu değilse kurulum önerisi sunulur
+
+### 🖥️ Terminal Arayüzü (TUI)
+- `--tui` bayrağı ile Rich kütüphanesi tabanlı terminal arayüzü
+- Tarama ilerlemesi ve özet tablosu
+- `pip install rich` ile kurulum
+
+### 🌩️ Multi-Cloud Desteği (GCP ve Azure)
+- `--bulut gcp` veya `--bulut azure` ile GCP ve Azure IAM vektörleri taranabilir
+- `vektorler_gcp.json` (8 GCP vektörü) ve `vektorler_azure.json` (8 Azure vektörü)
+- Her bulut sağlayıcı için özel sömürü komutları ve log izleri
+
+### 🚀 AWS Lambda Entegrasyonu
+- `lambda_handler.py` ile Tulpar AWS Lambda fonksiyonu olarak çalışabilir
+- SNS ve Slack bildirim desteği
+- EventBridge trigger ile zamanlanmış tarama desteği
 
 ## Özellikler
 
 ### Kimlik ve Yetki Keşfi
 - `sts:GetCallerIdentity` ile mevcut kimliğin ARN, Hesap ID ve Kullanıcı ID bilgilerini çeker
-- `iam:SimulatePrincipalPolicy` API'si üzerinden **58 kritik IAM eylemi** için yetki simülasyonu yapar
-- Eylem sayısı 200'ü aştığında otomatik sayfalama (200'erli gruplar) ile API limit aşımı engellenir
+- `iam:SimulatePrincipalPolicy` API'si üzerinden **73 IAM eylemi** için yetki simülasyonu yapar
+- Eylem sayısı 200'ü aştığında sayfalama (200'erli gruplar) ile API limit aşımı engellenir
 - Simülasyon API'sine erişim engellendiğinde fallback mekanizması ile çalışmaya devam eder
-- `botocore.config.Config` ile **adaptive retry** (5 yeniden deneme, exponential backoff) sayesinde throttling koruması
+- `botocore.config.Config` ile (5 yeniden deneme, exponential backoff) sayesinde throttling koruması
 
 ### Dinamik JSON Kural Veritabanı
 - Aracın tespit ettiği tüm yetki yükseltme vektörleri, risk skorları, gerekli IAM izinleri ve mavi takım tavsiyeleri statik kod yerine harici bir `vektorler.json` dosyasında saklanır
@@ -25,7 +63,7 @@ Tulpar, AWS Identity and Access Management (IAM) ortamlarında yetki yükseltme 
 
 | # | Vektör | Gereken İzinler | Kritiklik | Risk |
 |---|--------|-----------------|-----------|------|
-| 1 | Politika Sürümü Manipülasyonu | `iam:CreateNewPolicyVersion` | Kritik | 9.0 |
+| 1 | Politika Sürümü Manipülasyonu | `iam:CreatePolicyVersion` | Kritik | 9.0 |
 | 2 | Doğrudan Hak Enjeksiyonu | `iam:AttachUserPolicy` / `iam:PutUserPolicy` | Kritik | 9.5 |
 | 3 | Güven İlişkisi Suistimali | `iam:UpdateAssumeRolePolicy` | Yüksek | 8.0 |
 | 4 | Erişim Anahtarı Üretme | `iam:CreateAccessKey` | Kritik | 9.2 |
@@ -268,6 +306,44 @@ python -m tulpar --format sarif --format-cikti tulpar_rapor.sarif
 python -m tulpar --karsilastir onceki_tulpar_rapor.json --json-cikti yeni_tulpar_rapor.json
 ```
 
+### CloudTrail İstismar Analizi
+
+```bash
+python -m tulpar --cloudtrail-analiz --cloudtrail-gun 14
+```
+
+### Otomatik Düzeltme Scripti
+
+```bash
+python -m tulpar --duzelt --duzeltme-cikti raporlar/tulpar_remediation.md
+```
+
+### BloodHound Dışa Aktarımı
+
+```bash
+python -m tulpar --bloodhound-cikti raporlar/tulpar_bloodhound.json
+```
+
+### IAM Access Analyzer Taraması
+
+```bash
+python -m tulpar --access-analyzer
+```
+
+### Modern TUI Arayüzü
+
+```bash
+pip install rich
+python -m tulpar --tui
+```
+
+### Multi-Cloud Tarama (GCP/Azure)
+
+```bash
+python -m tulpar --bulut gcp
+python -m tulpar --bulut azure
+```
+
 ### Tüm Parametreler
 
 ```bash
@@ -282,7 +358,11 @@ python -m tulpar \
   --format-cikti raporlar/tulpar_bulgular.csv \
   --sarif-cikti raporlar/tulpar_rapor.sarif \
   --thread-sayisi 10 \
-  --konfig tulpar_config.json
+  --konfig tulpar_config.json \
+  --cloudtrail-analiz \
+  --access-analyzer \
+  --duzelt \
+  --bloodhound-cikti raporlar/tulpar_bloodhound.json
 ```
 
 ### Parametreler
@@ -308,6 +388,14 @@ python -m tulpar \
 | `--karsilastir` | Hayır | `None` | Önceki JSON raporu ile karşılaştır |
 | `--karsilastirma-cikti` | Hayır | `raporlar/tulpar_karsilastirma.json` | Diff rapor çıktı yolu |
 | `--thread-sayisi` | Hayır | `5` | Paralel bölge tarama iş parçacığı sayısı (1–20) |
+| `--cloudtrail-analiz` | Hayır | `False` | CloudTrail loglarında istismar izi ara |
+| `--cloudtrail-gun` | Hayır | `7` | CloudTrail geriye dönük gün sayısı |
+| `--access-analyzer` | Hayır | `False` | IAM Access Analyzer taraması yap |
+| `--duzelt` | Hayır | `False` | Otomatik Terraform/AWS CLI düzeltme kodu üret |
+| `--duzeltme-cikti` | Hayır | `raporlar/tulpar_remediation.md` | Düzeltme script çıktı yolu |
+| `--bloodhound-cikti` | Hayır | `None` | BloodHound/Neo4j JSON çıktı dosyası |
+| `--tui` | Hayır | `False` | Rich tabanlı modern TUI arayüzü |
+| `--bulut` | Hayır | `aws` | Bulut sağlayıcı: `aws`, `gcp`, `azure` |
 
 ## Çıktı Dosyaları
 
@@ -325,10 +413,10 @@ python -m tulpar \
       "risk_skoru": 9.0,
       "scp_kisitlamasi_var": false,
       "aciklama": "Saldirgan, mevcut politikalara...",
-      "cloudtrail_izi": "CreateNewPolicyVersion",
-      "sikiastirma_onerisi": "iam:CreateNewPolicyVersion...",
+      "cloudtrail_izi": "CreatePolicyVersion",
+      "sikiastirma_onerisi": "iam:CreatePolicyVersion...",
       "somuru_komutu": "aws iam create-policy-version...",
-      "mavi_takim_onerisi": "CloudTrail'de CreateNewPolicyVersion..."
+      "mavi_takim_onerisi": "CloudTrail'de CreatePolicyVersion..."
     }
   ]
 }
@@ -358,28 +446,36 @@ python -m tulpar \
 
 ```
 tulpar/
-├── __init__.py           Paket başlatıcı, sürüm bilgisi (v2.1.0)
-├── __main__.py           python -m tulpar giriş noktası
-├── sabitler.py           Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri, çıktı formatları
-├── vektorler.json        Dinamik kural veritabanı (65 vektör, 58 benzersiz IAM eylemi)
-├── yardimcilar.py        Loglama, SRI hash, önbellek, konfig, JSON okuyucu/doğrulayıcı,
-│                         SARIF rapor, diff rapor, servis adı ayrıştırma, hata yönetimi
-├── tarayici.py           GekSizmaScanner — Kimlik, SCP, paralel çoklu bölge, retry, sayfalama
-├── analiz.py             ExploitationMappingEngine — JSON'dan dinamik vektör işleme motoru
-├── rapor.py              AttackGraphGenerator (XSS korumalı) + ReportWriter + CokluFormatRaporlayici
-└── main.py               CLI (argparse), tarama profilleri, exit code, kimlik çözümleme
-test_tulpar.py            40 birim testi (unittest.mock)
+├── __init__.py              Paket başlatıcı, sürüm bilgisi (v2.2.0)
+├── __main__.py              python -m tulpar giriş noktası
+├── sabitler.py              Sürüm, bölge listesi, CDN URL'leri, SRI hash'leri, çıktı formatları
+├── vektorler.json           Dinamik kural veritabanı - AWS (65 vektör, 58 benzersiz IAM eylemi)
+├── vektorler_gcp.json       GCP IAM vektör tanımları (8 vektör)
+├── vektorler_azure.json     Azure IAM vektör tanımları (8 vektör)
+├── yardimcilar.py           Loglama, SRI hash, önbellek, konfig, JSON okuyucu/doğrulayıcı,
+│                            SARIF, diff, düzeltme scripti, BloodHound export, TUI, hata yönetimi
+├── tarayici.py              GekSizmaScanner — Kimlik, SCP, CloudTrail, Access Analyzer,
+│                            paralel çoklu bölge, retry, sayfalama
+├── analiz.py                ExploitationMappingEngine — JSON'dan dinamik vektör işleme motoru,
+│                            CloudTrail istismar analizi, Access Analyzer entegrasyonu
+├── rapor.py                 AttackGraphGenerator (XSS korumalı) + ReportWriter + CokluFormatRaporlayici
+├── lambda_handler.py        AWS Lambda handler — SNS/Slack bildirimli sürekli güvenlik taraması
+└── main.py                  CLI (argparse), tarama profilleri, exit code, kimlik çözümleme
+test_tulpar.py               51 birim testi (unittest.mock)
 ```
 
 ### Veri Akışı
 
-1. `yardimcilar.vektorleri_yukle()` → `vektorler.json` okunur, 12 alanlı şema doğrulaması yapılır, önbelleğe alınır
-2. `yardimcilar.kontrol_edilecek_eylemleri_derle()` → 65 vektörden benzersiz 58 IAM eylemi çıkarılır
-3. `tarayici.hak_simulasyonu_yap()` → 200'erli sayfalama ile IAM simülasyonu yapılır, sonuçlar birleştirilir
-4. `analiz.ExploitationMappingEngine` → Her vektörün `gerekli_izinler` (OR/AND) koşulu simülasyon sonucuna karşı değerlendirilir
-5. `yardimcilar.dugum_zafiyet_esleme_olustur()` → JSON'dan düğüm-zafiyet eşleme tablosu türetilir
-6. `rapor` modülü → JSON, HTML (XSS korumalı), CSV, Markdown, SARIF formatlarında rapor üretilir
-7. Kritik zafiyet varsa `sys.exit(1)`, yoksa `sys.exit(0)` — CI/CD pipeline'ları için
+1. `yardimcilar.vektorleri_yukle()` → `vektorler.json` (veya `vektorler_gcp.json`/`vektorler_azure.json`) okunur, 12 alanlı şema doğrulaması yapılır
+2. `yardimcilar.kontrol_edilecek_eylemleri_derle()` → Vektörlerden benzersiz IAM eylemleri çıkarılır
+3. `tarayici.hak_simulasyonu_yap()` → 200'erli sayfalama ile IAM simülasyonu yapılır
+4. `analiz.ExploitationMappingEngine` → Her vektörün `gerekli_izinler` (OR/AND) koşulu değerlendirilir
+5. **CloudTrail Entegrasyonu:** `tarayici.cloudtrail_istismar_analizi()` → Son N günlük CloudTrail olayları taranır
+6. **Access Analyzer:** `tarayici.access_analyzer_tara()` → Cross-account ve public rol bulguları toplanır
+7. `yardimcilar.dugum_zafiyet_esleme_olustur()` → JSON'dan düğüm-zafiyet eşleme tablosu türetilir
+8. `rapor` modülü → JSON, HTML (XSS korumalı), CSV, Markdown, SARIF, BloodHound formatlarında rapor
+9. **Düzeltme:** `yardimcilar.duzeltme_scripti_uret()` → Terraform + AWS CLI düzeltme blokları
+10. Kritik zafiyet varsa `sys.exit(1)`, yoksa `sys.exit(0)` — CI/CD pipeline'ları için
 
 ### Yeni Vektör Ekleme
 
@@ -422,6 +518,55 @@ Kullanmak için:
 
 Manuel tetikleme: GitHub Actions sekmesinden → "Tulpar AWS IAM Guvenlik Taramasi" → "Run workflow"
 
+## AWS Lambda Olarak Çalıştırma
+
+Tulpar, her gece otomatik tarama yapacak bir AWS Lambda fonksiyonu olarak da çalışabilir:
+
+### Lambda Deployment
+
+```bash
+# 1. Deployment paketini oluştur
+pip install boto3 -t ./lambda_paket/
+cp -r tulpar/ ./lambda_paket/tulpar/
+cd lambda_paket && zip -r ../tulpar_lambda.zip . && cd ..
+
+# 2. Lambda fonksiyonunu oluştur
+aws lambda create-function \
+  --function-name TulparGeceTaramasi \
+  --runtime python3.9 \
+  --handler tulpar.lambda_handler.lambda_handler \
+  --role arn:aws:iam::HESAP_ID:role/LambdaExecutionRole \
+  --zip-file fileb://tulpar_lambda.zip \
+  --timeout 300 \
+  --memory-size 512 \
+  --environment "Variables={TULPAR_SNS_TOPIC_ARN=arn:aws:sns:BOLGE:HESAP_ID:TulparBildirimleri,TULPAR_HIZLI_MOD=false,TULPAR_CLOUDTRAIL_ANALIZ=true}"
+
+# 3. EventBridge kuralı ile gece 03:00'da tetikle
+aws events put-rule \
+  --name TulparGeceTaramasiKurali \
+  --schedule-expression "cron(0 3 * * ? *)"
+
+aws events put-targets \
+  --rule TulparGeceTaramasiKurali \
+  --targets "Id"="1","Arn"="arn:aws:lambda:BOLGE:HESAP_ID:function:TulparGeceTaramasi"
+```
+
+### Slack Bildirimi
+
+```bash
+# Lambda ortam değişkenine Slack Webhook URL'i ekleyin
+TULPAR_SLACK_WEBHOOK=https://hooks.slack.com/services/TXXXX/BXXXX/XXXXXXXX
+```
+
+### Lambda Ortam Değişkenleri
+
+| Değişken | Zorunlu | Açıklama |
+|----------|---------|----------|
+| `TULPAR_SNS_TOPIC_ARN` | Hayır | SNS bildirim konusu ARN'i |
+| `TULPAR_SLACK_WEBHOOK` | Hayır | Slack webhook URL'i |
+| `TULPAR_HIZLI_MOD` | Hayır | `true` ise sadece 15 vektör taranır |
+| `TULPAR_CLOUDTRAIL_ANALIZ` | Hayır | `true` ise CloudTrail analizi aktif |
+
 ## Test
 
 ```bash
@@ -429,7 +574,7 @@ pip install moto pytest
 python -m pytest test_tulpar.py -v
 ```
 
-**40 test**, tüm modülleri kapsar:
+**50+ test**, tüm modülleri kapsar:
 
 | Test Sınıfı | Test Sayısı | Kapsam |
 |-------------|:-----------:|--------|

@@ -137,11 +137,11 @@ jobs:
           ZAFIYET_SAYISI=$(python -c "import json; d=json.load(open('tulpar_rapor.json','r',encoding='utf-8')); print(d['zafiyet_sayisi'])")
           echo "**Tespit Edilen Zafiyet:** $ZAFIYET_SAYISI" >> $GITHUB_STEP_SUMMARY
           python -c "
-      import json
-      d = json.load(open('tulpar_rapor.json', 'r', encoding='utf-8'))
-      for b in d['bulgular']:
-          kritik = b.get('kritiklik_seviyesi', 'Belirsiz')
-          risk = b.get('risk_skoru', '-')
-          ad = b.get('zafiyet_adi', '')
-          print(f'- **{ad}** | {kritik} | Risk: {risk}/10')
-      " >> $GITHUB_STEP_SUMMARY
+          import json
+          d = json.load(open('tulpar_rapor.json', 'r', encoding='utf-8'))
+          for b in d['bulgular']:
+              kritik = b.get('kritiklik_seviyesi', 'Belirsiz')
+              risk = b.get('risk_skoru', '-')
+              ad = b.get('zafiyet_adi', '')
+              print(f'- **{ad}** | {kritik} | Risk: {risk}/10')
+          " >> $GITHUB_STEP_SUMMARY
