@@ -417,7 +417,16 @@ class GekSizmaScanner:
     def kimlik_bilgilerini_getir(self):
         try:
             yanit = self.sts_istemicisi.get_caller_identity()
-            self.kimlik_bilgileri["arn"] = yanit["Arn"]
+            arn = yanit["Arn"]
+            # SimulatePrincipalPolicy API'si STS Assumed Role ARN kabul etmez, gercek IAM rol ARN'sine cevirmeliyiz.
+            if ":sts::" in arn and "assumed-role/" in arn:
+                parts = arn.split(":")
+                hesap_id = parts[4]
+                rol_adi = parts[5].split("/")[1]
+                arn = f"arn:aws:iam::{hesap_id}:role/{rol_adi}"
+                logger.info("STS Assumed Role tespit edildi, IAM rolune donusturuldu: %s", arn)
+                
+            self.kimlik_bilgileri["arn"] = arn
             self.kimlik_bilgileri["hesap_id"] = yanit["Account"]
             self.kimlik_bilgileri["kullanici_id"] = yanit["UserId"]
             logger.info("Kimlik dogrulandi: %s", self.kimlik_bilgileri["arn"])
