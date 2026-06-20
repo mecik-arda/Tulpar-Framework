@@ -509,5 +509,3 @@ def ana_fonksiyon():
 
 if __name__ == "__main__":
     ana_fonksiyon()
-#   T e t i k l e m e  
- 
