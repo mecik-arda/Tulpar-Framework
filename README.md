@@ -2,6 +2,23 @@
 
 Tulpar, AWS, GCP, Azure ve Kubernetes ortamlarında yetki yükseltme (privilege escalation) ve güvenlik zafiyet vektörlerini tarayan gelişmiş bir güvenlik aracıdır. Projenizdeki IAM politikalarını ve Kubernetes RBAC tanımlarını analiz ederek olası yetki yükseltme yollarını modeller ve sonuçları JSON, CSV, Markdown, SARIF, BloodHound formatları ile etkileşimli HTML grafiği ve modern Web Dashboard üzerinden sunar.
 
+## Proje Hakkında: Sık Sorulan Sorular
+
+**1. Tool'un Amacı ve Rengi Nedir? (Hangi Problemi Çözüyor, Hangi Dikeyde?)**
+Tulpar, Cloud (AWS, GCP, Azure) ve Kubernetes ortamlarında gözden kaçan hatalı yapılandırılmış izinleri ve ayrıcalık yükseltme yollarını otomatik olarak tespit eder. Bu araç tam olarak **Purple Team (Mor Takım)** dikeyinde yer alır. Red Team (Kırmızı Takım) için "Zafiyet nasıl sömürülür?" (Exploit komutları, saldırı yolları) sorusunu cevaplarken, Blue Team (Mavi Takım) için "Nasıl savunulur?" (CloudTrail izleri, Terraform/CLI düzeltme kodları, daraltma önerileri) sorusunu yanıtlar. Her iki tarafın iletişimini ve iyileştirme süreçlerini otomatikleştirir.
+
+**2. Hangi Teknoloji Stack'ini Kullanacaksın?**
+Proje performansı ve yaygın ekosistemi sebebiyle **Python 3.11** ile geliştirilmiştir. Temel altyapı ve kütüphaneler şunlardır:
+- **Bulut İletişimi:** AWS için `boto3`, Kubernetes için `kubernetes` istemcisi.
+- **Arayüz ve Raporlama:** Modern CLI/TUI için `rich`, interaktif Web paneli için `streamlit`, saldırı grafiği görselleştirmesi için `vis.js`.
+- **DevSecOps ve Test:** İzolasyon için `Docker` (sıfır zafiyet garantili Alpine Linux tabanı), API simülasyonu için `moto`, birim testleri için `pytest`, statik kod analizi ve güvenlik kontrolü için `flake8` ve `bandit`.
+
+**3. Test Ve Doğrulama Planın Nedir?**
+Tulpar, `moto` kütüphanesi kullanılarak mocklanmış sahte (dummy) AWS ortamlarında tamamen izole bir biçimde (sandbox) test edilir. `pytest` ile yazılmış 50'den fazla otomatik test senaryosu; IAM hak simülasyonlarını, hatalı kimlik girişlerini, sayfalama ve limit (throttling) senaryolarını test eder. GitHub Actions üzerinde kurulu 5 aşamalı CI/CD (DevSecOps) hattında; kodlar her commit'te otomatik teste girer, oluşturulan Docker imajları Trivy ile zafiyet taramasından geçirilir ve testleri geçmeyen hiçbir kod `main` dalına dahil edilmez.
+
+**4. Sektördeki Muadillerinden Farkı/Özgünlüğü Ne?**
+Sektördeki diğer araçların (örneğin Pacu, PMapper, Cloudsplaining) aksine Tulpar'ın en büyük gücü **Dinamik JSON Kural Veritabanı** mimarisidir. Kaynak koda dokunmadan sadece yeni bir JSON bloğu yazarak araca yepyeni bir zafiyet vektörü öğretilebilir. Ayrıca entegre Web Dashboard'u, AI/LLM destekli yönetici özeti oluşturabilmesi ve bulduğu zafiyetlerin CloudTrail loglarında aktif olarak sömürülüp sömürülmediğini (geriye dönük analiz) kontrol edebilmesi Tulpar'ı rakiplerinden açık ara daha eşsiz ve modern kılar.
+
 ## Yeni Özellikler (v3.0.0)
 
 ### 🌐 Modern Web Dashboard
