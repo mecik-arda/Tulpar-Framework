@@ -471,7 +471,7 @@ class TestExploitationMappingEngine(unittest.TestCase):
         self.assertIn("Bilinmeyen Yetki Durumu", zafiyet_adlari)
 
     def test_hizli_mod_vektor_sayisi(self):
-        from tulpar.yardimcilar import vektorleri_yukle, vektor_onbellegi_temizle
+        from tulpar.dogrulayici import vektorleri_yukle, vektor_onbellegi_temizle
 
         vektor_onbellegi_temizle()
         vektor_verisi = vektorleri_yukle()
@@ -484,12 +484,12 @@ class TestExploitationMappingEngine(unittest.TestCase):
 
 class TestYardimcilarVektorYukleme(unittest.TestCase):
     def setUp(self):
-        from tulpar.yardimcilar import vektor_onbellegi_temizle
+        from tulpar.dogrulayici import vektor_onbellegi_temizle
 
         vektor_onbellegi_temizle()
 
     def test_vektorleri_yukle_basarili(self):
-        from tulpar.yardimcilar import vektorleri_yukle
+        from tulpar.dogrulayici import vektorleri_yukle
 
         veri = vektorleri_yukle()
         self.assertIn("vektorler", veri)
@@ -497,7 +497,7 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
         self.assertGreater(len(veri["vektorler"]), 0)
 
     def test_vektor_dogrula_gecerli(self):
-        from tulpar.yardimcilar import vektor_dogrula
+        from tulpar.dogrulayici import vektor_dogrula
 
         gecerli_vektor = {
             "vektor_adi": "Test",
@@ -519,14 +519,14 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
             self.fail("vektor_dogrula gecerli vektor icin hata firlatti")
 
     def test_vektor_dogrula_eksik_alan(self):
-        from tulpar.yardimcilar import vektor_dogrula
+        from tulpar.dogrulayici import vektor_dogrula
 
         eksik_vektor = {"vektor_adi": "Test"}
         with self.assertRaises(ValueError):
             vektor_dogrula(eksik_vektor, 1)
 
     def test_vektor_dogrula_gecersiz_risk_skoru(self):
-        from tulpar.yardimcilar import vektor_dogrula
+        from tulpar.dogrulayici import vektor_dogrula
 
         gecersiz_vektor = {
             "vektor_adi": "Test",
@@ -546,7 +546,7 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
             vektor_dogrula(gecersiz_vektor, 1)
 
     def test_vektor_dogrula_gecersiz_seviye(self):
-        from tulpar.yardimcilar import vektor_dogrula
+        from tulpar.dogrulayici import vektor_dogrula
 
         gecersiz_vektor = {
             "vektor_adi": "Test",
@@ -566,7 +566,7 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
             vektor_dogrula(gecersiz_vektor, 1)
 
     def test_vektor_onbellegi_temizle(self):
-        from tulpar.yardimcilar import vektorleri_yukle, vektor_onbellegi_temizle
+        from tulpar.dogrulayici import vektorleri_yukle, vektor_onbellegi_temizle
 
         vektor_onbellegi_temizle()
         veri1 = vektorleri_yukle()
@@ -577,7 +577,7 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
         self.assertEqual(len(veri1["vektorler"]), len(veri2["vektorler"]))
 
     def test_kontrol_edilecek_eylemleri_derle(self):
-        from tulpar.yardimcilar import kontrol_edilecek_eylemleri_derle, vektor_onbellegi_temizle
+        from tulpar.dogrulayici import kontrol_edilecek_eylemleri_derle, vektor_onbellegi_temizle
 
         vektor_onbellegi_temizle()
         eylemler = kontrol_edilecek_eylemleri_derle()
@@ -587,7 +587,7 @@ class TestYardimcilarVektorYukleme(unittest.TestCase):
         self.assertIn("iam:PassRole", eylemler)
 
     def test_dugum_zafiyet_esleme_olustur(self):
-        from tulpar.yardimcilar import dugum_zafiyet_esleme_olustur, vektor_onbellegi_temizle
+        from tulpar.dogrulayici import dugum_zafiyet_esleme_olustur, vektor_onbellegi_temizle
 
         vektor_onbellegi_temizle()
         esleme = dugum_zafiyet_esleme_olustur()
@@ -913,7 +913,7 @@ class TestCokluFormatRaporlayici(unittest.TestCase):
 
 class TestSarifRaporu(unittest.TestCase):
     def test_sarif_raporu_yaz_basarili(self):
-        from tulpar.yardimcilar import sarif_raporu_yaz
+        from tulpar.raporlayici import sarif_raporu_yaz
 
         bulgular = [
             {
@@ -943,7 +943,7 @@ class TestSarifRaporu(unittest.TestCase):
                 os.unlink(yol)
 
     def test_sarif_raporu_orta_risk(self):
-        from tulpar.yardimcilar import sarif_raporu_yaz
+        from tulpar.raporlayici import sarif_raporu_yaz
 
         bulgular = [{"zafiyet_adi": "Test Orta", "kritiklik_seviyesi": "Orta", "risk_skoru": 5.0, "aciklama": "Test"}]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False, encoding="utf-8") as gecici:
@@ -965,7 +965,7 @@ class TestRaporKarsilastir(unittest.TestCase):
         self.karsilastirma_yol = None
 
     def test_rapor_karsilastir_yeni_eklenen(self):
-        from tulpar.yardimcilar import rapor_karsilastir
+        from tulpar.raporlayici import rapor_karsilastir
 
         onceki = {
             "arac_adi": "Tulpar",
@@ -1000,7 +1000,7 @@ class TestRaporKarsilastir(unittest.TestCase):
                     os.unlink(yol)
 
     def test_rapor_karsilastir_kapanan(self):
-        from tulpar.yardimcilar import rapor_karsilastir
+        from tulpar.raporlayici import rapor_karsilastir
 
         onceki = {
             "arac_adi": "Tulpar",
@@ -1034,7 +1034,7 @@ class TestRaporKarsilastir(unittest.TestCase):
                     os.unlink(yol)
 
     def test_rapor_karsilastir_dosya_yok(self):
-        from tulpar.yardimcilar import rapor_karsilastir
+        from tulpar.raporlayici import rapor_karsilastir
 
         sonuc = rapor_karsilastir("/var/yok/dosya1.json", "/var/yok/dosya2.json", "/var/yok/cikti.json")
         self.assertIsNone(sonuc)

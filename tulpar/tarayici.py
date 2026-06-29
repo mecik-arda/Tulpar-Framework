@@ -453,20 +453,24 @@ class GekSizmaScanner:
                 )
                 for degerlendirme in yanit["EvaluationResults"]:
                     tum_sonuclar[degerlendirme["EvalActionName"]] = degerlendirme["EvalDecision"]
-                    
-                pass_role_eylemleri = [e for e in sayfa_eylemleri if e == "iam:PassRole"]
-                if pass_role_eylemleri and tum_sonuclar.get("iam:PassRole") != "allowed" and kaynak_arn == "*":
-                    hesap_id = self.kimlik_bilgileri.get("hesap_id", "123456789012")
-                    ozel_arn = f"arn:aws:iam::{hesap_id}:role/TulparPassRoleTest"
-                    pr_yanit = self.iam_istemicisi.simulate_principal_policy(
-                        PolicySourceArn=prennsip_arn, ActionNames=pass_role_eylemleri, ResourceArns=[ozel_arn]
-                    )
-                    for degerlendirme in pr_yanit["EvaluationResults"]:
-                        if degerlendirme["EvalDecision"] == "allowed":
-                            tum_sonuclar[degerlendirme["EvalActionName"]] = "allowed"
             except ClientError as hata:
                 self._aws_hatasi_yonet(
                     hata, "Hak Simulasyonu (sayfa %d-%d)" % (i, min(i + sayfa_boyutu, len(eylem_listesi)))
                 )
                 return "UNKNOWN_RESTRICTED"
+                
+        # BUG FIX: PassRole kontrolunu tum sonuclar birlestikten sonra yap (gereksiz API cagrilarini onler)
+        if "iam:PassRole" in eylem_listesi and tum_sonuclar.get("iam:PassRole") != "allowed" and kaynak_arn == "*":
+            try:
+                hesap_id = self.kimlik_bilgileri.get("hesap_id", "123456789012")
+                ozel_arn = f"arn:aws:iam::{hesap_id}:role/TulparPassRoleTest"
+                pr_yanit = self.iam_istemicisi.simulate_principal_policy(
+                    PolicySourceArn=prennsip_arn, ActionNames=["iam:PassRole"], ResourceArns=[ozel_arn]
+                )
+                for degerlendirme in pr_yanit["EvaluationResults"]:
+                    if degerlendirme["EvalDecision"] == "allowed":
+                        tum_sonuclar[degerlendirme["EvalActionName"]] = "allowed"
+            except ClientError as hata:
+                self._aws_hatasi_yonet(hata, "PassRole Ozel Hak Simulasyonu")
+
         return tum_sonuclar

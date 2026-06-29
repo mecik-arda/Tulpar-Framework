@@ -74,6 +74,9 @@ def web_dashboard_baslat(argumanlar):
 
     st.sidebar.markdown("## ⚙️ Tarama Ayarları")
 
+    aws_access_key = st.sidebar.text_input("AWS Access Key", type="password", help="İsteğe bağlı. Boş bırakılırsa sistemdeki (AWS CLI/Env) anahtarlar kullanılır. Güvenlik için asla kaydedilmez.")
+    aws_secret_key = st.sidebar.text_input("AWS Secret Key", type="password", help="İsteğe bağlı. Boş bırakılırsa sistemdeki (AWS CLI/Env) anahtarlar kullanılır. Güvenlik için asla kaydedilmez.")
+
     bulut = st.sidebar.selectbox("Bulut Sağlayıcı", ["aws", "gcp", "azure"], index=0)
     hizli = st.sidebar.checkbox("Hızlı Mod (15 vektör)", value=False)
     cloudtrail = st.sidebar.checkbox("CloudTrail Analizi", value=True)
@@ -95,10 +98,13 @@ def web_dashboard_baslat(argumanlar):
         with st.spinner("Tulpar taraması başlatılıyor... Lütfen bekleyin."):
             from tulpar.tarayici import GekSizmaScanner
             from tulpar.analiz import ExploitationMappingEngine
-            from tulpar.yardimcilar import vektorleri_yukle
-
+            from tulpar.yardimcilar import loglama_yapilandir
+            from tulpar.dogrulayici import vektorleri_yukle
+            
             progress_bar = st.progress(0, text="Kimlik doğrulanıyor...")
-            tarayici = GekSizmaScanner(thread_sayisi=thread_sayisi)
+            ak = aws_access_key.strip() if aws_access_key.strip() else None
+            sk = aws_secret_key.strip() if aws_secret_key.strip() else None
+            tarayici = GekSizmaScanner(thread_sayisi=thread_sayisi, erisim_anahtari=ak, gizli_anahtar=sk)
 
             progress_bar.progress(15, text="Vektörler yükleniyor...")
             analiz_motoru = ExploitationMappingEngine(tarayici)
@@ -162,8 +168,8 @@ def web_dashboard_baslat(argumanlar):
                             st.markdown(f"**CloudTrail İzi:** `{zafiyet.get('cloudtrail_izi', '-')}`")
                             st.markdown(f"**Sıkılaştırma Önerisi:** {zafiyet.get('sikiastirma_onerisi', '-')}")
                         with col_b:
-                            from tulpar.yardimcilar import htmlKacis
-                            guvenli_kritiklik = htmlKacis(kritiklik)
+                            import html
+                            guvenli_kritiklik = html.escape(kritiklik)
                             st.markdown(f'<span class="{badge_class}">{guvenli_kritiklik}</span>', unsafe_allow_html=True)
                             st.metric("Risk Skoru", f"{risk}/10")
 
@@ -184,7 +190,7 @@ def web_dashboard_baslat(argumanlar):
             if duzelt and bulunan:
                 st.markdown("---")
                 st.markdown("### 🔧 Düzeltme Önerileri")
-                from tulpar.yardimcilar import duzeltme_scripti_uret
+                from tulpar.raporlayici import duzeltme_scripti_uret
                 import tempfile
 
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:

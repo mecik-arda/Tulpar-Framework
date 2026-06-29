@@ -1,6 +1,6 @@
 import logging
 
-from tulpar.yardimcilar import vektorleri_yukle, kontrol_edilecek_eylemleri_derle, risk_skoru_tablosu_olustur
+from tulpar.dogrulayici import vektorleri_yukle, kontrol_edilecek_eylemleri_derle, risk_skoru_tablosu_olustur
 
 logger = logging.getLogger("Tulpar")
 
@@ -13,18 +13,28 @@ class ExploitationMappingEngine:
         self.vektor_verisi = vektorleri_yukle()
         self.vektorler = self.vektor_verisi.get("vektorler", [])
         self.risk_skoru_tablosu = risk_skoru_tablosu_olustur(self.vektor_verisi)
+        self._skor_onbellegi = {}
 
     def _risk_skoru_ata(self, zafiyet_adi):
+        if zafiyet_adi in self._skor_onbellegi:
+            return self._skor_onbellegi[zafiyet_adi]
         if zafiyet_adi in self.risk_skoru_tablosu:
-            return self.risk_skoru_tablosu[zafiyet_adi]
+            skor = self.risk_skoru_tablosu[zafiyet_adi]
+            self._skor_onbellegi[zafiyet_adi] = skor
+            return skor
         for anahtar, skor in self.risk_skoru_tablosu.items():
             if anahtar in zafiyet_adi:
+                self._skor_onbellegi[zafiyet_adi] = skor
                 return skor
             if len(anahtar) > 20 and zafiyet_adi.startswith(anahtar[:20]):
+                self._skor_onbellegi[zafiyet_adi] = skor
                 return skor
         if "Coklu Bolge" in zafiyet_adi:
-            return 2.0
-        return 5.0
+            skor = 2.0
+        else:
+            skor = 5.0
+        self._skor_onbellegi[zafiyet_adi] = skor
+        return skor
 
     def _bulgu_ekle(self, bulgu_sozlugu):
         zafiyet_adi = bulgu_sozlugu.get("zafiyet_adi", "")

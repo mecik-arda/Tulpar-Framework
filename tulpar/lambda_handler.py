@@ -19,10 +19,8 @@ import os
 import json
 import logging
 from datetime import datetime
-from tulpar.yardimcilar import (
-    loglama_yapilandir,
-    vektorleri_yukle,
-)
+from tulpar.yardimcilar import loglama_yapilandir
+from tulpar.dogrulayici import vektorleri_yukle
 from tulpar.tarayici import GekSizmaScanner
 from tulpar.analiz import ExploitationMappingEngine
 

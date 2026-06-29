@@ -1,5 +1,6 @@
 # Tulpar — Multi-Cloud & Kubernetes IAM/RBAC Privilege Escalation Scanner (v3.0.0)
 
+> 🛡️ **AltaySec** bünyesinde geliştirilmiştir.
 Tulpar, AWS, GCP, Azure ve Kubernetes ortamlarında yetki yükseltme (privilege escalation) ve güvenlik zafiyet vektörlerini tarayan gelişmiş bir güvenlik aracıdır. Projenizdeki IAM politikalarını ve Kubernetes RBAC tanımlarını analiz ederek olası yetki yükseltme yollarını modeller ve sonuçları JSON, CSV, Markdown, SARIF, BloodHound formatları ile etkileşimli HTML grafiği ve modern Web Dashboard üzerinden sunar.
 
 ## Proje Hakkında: Sık Sorulan Sorular
@@ -24,6 +25,7 @@ Sektördeki diğer araçların (örneğin Pacu, PMapper, Cloudsplaining) aksine 
 ### 🌐 Modern Web Dashboard
 - `--web` bayrağı ile Streamlit tabanlı, karanlık temalı interaktif bir web paneli başlatılır.
 - Bulgular, risk dağılımı, canlı ilerleme çubuğu, etkileşimli saldırı grafiği ve düzeltme betikleri indirme olanağı sunar.
+- **[YENİ]** API Anahtarları (Access/Secret Key) artık doğrudan web arayüzünden şifreli kutucuklar ile güvenli şekilde girilebilir (Kimlik bilgileri diske kaydedilmez, anlık işlenir).
 
 ### 🤖 AI/LLM Destekli Yönetici Özeti
 - `--ai-analiz` bayrağı ile OpenAI (GPT-4o), Claude (Sonnet) ve AWS Bedrock aracılığıyla CISO/CTO seviyesinde üst düzey yönetici özeti çıkarılır.
@@ -61,12 +63,30 @@ Sektördeki diğer araçların (örneğin Pacu, PMapper, Cloudsplaining) aksine 
 ### 🖥️ Terminal Arayüzü (TUI) (v2.2.0)
 - `--tui` bayrağı ile Rich kütüphanesi tabanlı terminal arayüzü sağlanır.
 
+
 ### 🌩️ Multi-Cloud Desteği (GCP ve Azure) (v2.2.0)
 - `--bulut gcp` veya `--bulut azure` ile GCP ve Azure IAM vektörleri taranabilir.
 - `vektorler_gcp.json` (8 GCP vektörü) ve `vektorler_azure.json` (8 Azure vektörü).
 
 ### 🚀 AWS Lambda Entegrasyonu (v2.2.0)
 - `lambda_handler.py` ile Tulpar AWS Lambda fonksiyonu olarak çalışabilir.
+
+## 📸 Ekran Görüntüleri
+
+### İnteraktif HTML Saldırı Grafiği (Vis.js)
+![Saldırı Grafiği](ekran_goruntuleri/1.png)
+
+### Modern Web Dashboard (Zafiyetler)
+![Web Dashboard Zafiyetler](ekran_goruntuleri/2.png)
+
+### Modern Web Dashboard (Saldırı Yolları)
+![Web Dashboard Saldırı Yolları](ekran_goruntuleri/3.png)
+
+### Terminal Arayüzü (TUI)
+![TUI Arayüzü](ekran_goruntuleri/cli_arayuz.png)
+
+### Otomatik Düzeltme Çıktısı (Remediation)
+![Düzeltme Scripti](ekran_goruntuleri/web_duzeltme_cikti.png)
 
 ## Özellikler
 
@@ -492,8 +512,11 @@ tulpar/
 ├── vektorler.json           Dinamik kural veritabanı - AWS (65 vektör, 58 benzersiz IAM eylemi)
 ├── vektorler_gcp.json       GCP IAM vektör tanımları (8 vektör)
 ├── vektorler_azure.json     Azure IAM vektör tanımları (8 vektör)
-├── yardimcilar.py           Loglama, SRI hash, önbellek, konfig, JSON okuyucu/doğrulayıcı,
-│                            SARIF, diff, düzeltme scripti, BloodHound export, TUI, hata yönetimi
+├── dogrulayici.py           JSON şema doğrulama, asset bütünlük kontrolü ve güvenlik
+├── onbellek.py              Güvenli tarama önbelleği (chmod 0o600) okuma/yazma
+├── raporlayici.py           CSV, SARIF, Markdown rapor formatları ve BloodHound export
+├── entegrasyon.py           TUI, Web Dashboard ve AI analiz modülleri entegrasyonları
+├── templates/grafik.html    Saldırı grafiği için statik HTML ve Vis.js şablonu
 ├── tarayici.py              GekSizmaScanner — Kimlik, SCP, CloudTrail, Access Analyzer,
 │                            paralel çoklu bölge, retry, sayfalama
 ├── analiz.py                ExploitationMappingEngine — JSON'dan dinamik vektör işleme motoru,
@@ -649,6 +672,7 @@ python -m pytest test_tulpar.py -v
 - Tulpar'ı yalnızca sahibi olduğunuz veya yazılı test izni aldığınız AWS hesaplarında kullanın
 - Aracın kötüye kullanımından doğacak hukuki sonuçlardan kullanıcı sorumludur
 - Araç salt okunur API çağrıları yapar; hiçbir kaynak oluşturmaz, değiştirmez veya silmez
+- Uygulama girdiğiniz hiçbir API anahtarını veya erişim bilgisini diske kaydetmez, loglamaz veya dışarı sızdırmaz
 - Tespit edilen zafiyetleri derhal ilgili AWS hesap yöneticilerine bildirin
 
 ## Lisans

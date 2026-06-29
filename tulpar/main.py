@@ -6,17 +6,25 @@ import logging
 from datetime import datetime
 from tulpar.yardimcilar import (
     loglama_yapilandir,
+    konfigurasyon_yukle,
+)
+from tulpar.onbellek import (
     onbellege_kaydet,
     onbellekten_yukle,
     onbellek_suresi_gecerli_mi,
-    konfigurasyon_yukle,
-    rapor_karsilastir,
+)
+from tulpar.dogrulayici import (
     vektorleri_yukle,
+    risk_skoru_tablosu_olustur,
+)
+from tulpar.raporlayici import (
+    rapor_karsilastir,
     sarif_raporu_yaz,
     duzeltme_scripti_uret,
+)
+from tulpar.entegrasyon import (
     bloodhound_disa_aktar,
     tui_dashboard_goster,
-    risk_skoru_tablosu_olustur,
     ai_yonetici_ozeti_uret,
 )
 from tulpar.tarayici import GekSizmaScanner
@@ -222,6 +230,33 @@ def ana_fonksiyon():
 
     argumanlar = arguman_isleyici.parse_args()
 
+    def guvenli_yol_al(yol):
+        if not yol:
+            return yol
+        gercek_yol = os.path.realpath(yol)
+        izin_verilen_dizin = os.path.realpath(os.getcwd())
+        if not gercek_yol.startswith(izin_verilen_dizin):
+            logger.error("Guvenlik: Cikti dizini calisma dizini sinirinin disinda: %s", yol)
+            sys.exit(1)
+        return gercek_yol
+    
+    argumanlar.json_cikti = guvenli_yol_al(argumanlar.json_cikti)
+    argumanlar.html_cikti = guvenli_yol_al(argumanlar.html_cikti)
+    if argumanlar.onbellek:
+        argumanlar.onbellek = guvenli_yol_al(argumanlar.onbellek)
+    if argumanlar.format_cikti:
+        argumanlar.format_cikti = guvenli_yol_al(argumanlar.format_cikti)
+    if argumanlar.karsilastir:
+        argumanlar.karsilastir = guvenli_yol_al(argumanlar.karsilastir)
+    argumanlar.karsilastirma_cikti = guvenli_yol_al(argumanlar.karsilastirma_cikti)
+    if argumanlar.sarif_cikti:
+        argumanlar.sarif_cikti = guvenli_yol_al(argumanlar.sarif_cikti)
+    if argumanlar.duzeltme_cikti:
+        argumanlar.duzeltme_cikti = guvenli_yol_al(argumanlar.duzeltme_cikti)
+    if argumanlar.bloodhound_cikti:
+        argumanlar.bloodhound_cikti = guvenli_yol_al(argumanlar.bloodhound_cikti)
+    argumanlar.k8s_cikti = guvenli_yol_al(argumanlar.k8s_cikti)
+
     if argumanlar.sessiz:
         logging.getLogger().setLevel(logging.ERROR)
 
@@ -322,6 +357,9 @@ def ana_fonksiyon():
                     sys.exit(1)
         sys.exit(0)
 
+    bulunan_zafiyetler = []
+    saldiri_yollari = []
+    scp_durumu = None
     onbellek_kullaniliyor = False
     if argumanlar.onbellek:
         if onbellek_suresi_gecerli_mi(argumanlar.onbellek, argumanlar.onbellek_suresi):
@@ -395,7 +433,7 @@ def ana_fonksiyon():
             analiz_motoru.risk_skoru_tablosu = risk_skoru_tablosu_olustur(vektor_verisi)
 
         if argumanlar.hizli:
-            if not argumanlar.bulut != "aws":
+            if argumanlar.bulut == "aws":
                 vektor_verisi = vektorleri_yukle()
             tum_vektorler = analiz_motoru.vektorler
             kritik_vektorler = sorted(tum_vektorler, key=lambda v: v.get("risk_skoru", 0), reverse=True)[:15]
